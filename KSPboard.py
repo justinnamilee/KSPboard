@@ -30,7 +30,6 @@ print('serial setup...')
 control = serial.Serial('COM6', 115200)
 def readControlByte():
 	x = int(control.read())
-	print(x)
 	return x
 
 
