@@ -28,10 +28,14 @@ print('starting up...')
 
 print('serial setup...')
 control = serial.Serial('COM6', 115200)
-def readControlByte():
-	x = int(control.read())
-	return x
 
+def readControlByte():
+	return int(control.readline().strip())
+
+def readControlFloat():
+	x = readControlByte()
+	print(x)
+	return (2.0 * (float(x) - 127.5) / 255.0)
 
 # setup kRPC
 
@@ -72,7 +76,7 @@ def KSP_null():
 	print('null')
 
 # control dictionary (look up table / switch)
-KSP_control = {
+KSP_ops = {
 	0  : KSP_null,
 	1  : KSP_act(1),
 	2  : KSP_act(2),
@@ -89,9 +93,20 @@ KSP_control = {
 # 
 }
 
-# control dictionary mapping function
-def kspControl(n):
-	KSP_control[n]()
+# operations dictionary mapper
+def kspOps(n):
+	KSP_ops[n]()
+
+# for directional input
+KSP_helm = {
+	'pitch'  : 0,
+	'roll'   : 0,
+	'yaw'    : 0,
+	'thrust' : 50,
+}
+
+def kspHelm():
+	'null'
 
 
 # loop
@@ -100,7 +115,13 @@ print('')
 print('ready')
 
 while True:
-	if readControlByte() == 0:
-		print('command')
-		kspControl(readControlByte())
+
+	test = readControlFloat()
+	bridge.pitch = test
+	print(test)	
+	time.sleep(0.1)
+
+#	if readControlByte() == 1:
+#		print('command')
+#		kspControl(readControlByte())
 
