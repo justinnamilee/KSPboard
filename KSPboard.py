@@ -11,6 +11,8 @@
 #   greater flexibility in control when compared
 #   with KSP Serial as you do not need to recompile
 #   a mod to make changes to the serial interface.
+#   See LISENCE and README for more information on
+#   this project.
 #
 ###
 
@@ -28,14 +30,25 @@ print('starting up...')
 
 print('serial setup...')
 control = serial.Serial('COM6', 115200)
+time.sleep(1)
 
-def readControlByte():
+def haveByte():
+	return control.in_waiting > 0
+
+def readByteB(): # blocking
 	return int(control.readline().strip())
 
-def readControlFloat():
-	x = readControlByte()
-	print(x)
-	return (2.0 * (float(x) - 127.5) / 255.0)
+def readByte(): # 0 to 255
+	return int(control.read())
+
+def readFloat(): # -1 to 1
+	return (2.0 * (float(readByte()) - 127.5) / 255.0)
+
+def readUFloat(): # 0 to 1
+	return (readFloat() / 2.0) + 0.5
+
+control.readline()
+
 
 # setup kRPC
 
@@ -94,34 +107,91 @@ KSP_ops = {
 }
 
 # operations dictionary mapper
-def kspOps(n):
-	KSP_ops[n]()
+def kspOps(c):
+	print('command: {}'.format(c))
+	KSP_ops[c]()
+
+def kspOpsUpdate():
+
+	if readByte() == 1:
+		command = []
+		state = readByte()
+
+		while state != 0:
+			command.append(state) # get command list
+			state = readByte() # get next command
+
+		for c in command:
+			kspOps(c) # execute in order
+
+
 
 # for directional input
+
 KSP_helm = {
-	'pitch'  : 0,
-	'roll'   : 0,
-	'yaw'    : 0,
-	'thrust' : 50,
+	'pitch'    : 0,
+	'roll'     : 0,
+	'yaw'      : 0,
+	'throttle' : 0,
 }
 
-def kspHelm():
-	'null'
+def kspHelm(e, v=None):
+
+	if v is not None:
+		print('helm: update {}: {}'.format(e, v))
+		KSP_helm[e] = v
+	else:
+		print('helm: current {}: {}'.format(e, KSP_helm[e]))
+
+	return KSP_helm[e]
+
+
+def kspHelmUpdate():
+
+	pitch = readFloat()
+	yaw = readFloat()
+	roll = readFloat()
+	throttle = readUFloat()
+
+	if pitch != kspHelm('pitch'):
+		kspHelm('pitch', pitch)
+		bridge.pitch = pitch
+
+	if yaw != kspHelm('yaw'):
+		kspHelm('yaw', yaw)
+		bridge.yaw = yaw
+
+	if roll != kspHelm('roll'):
+		kspHelm('roll', roll)
+		bridge.roll = roll
+
+	if throttle != kspHelm('throttle'):
+		kspHelm('throttle', throttle)
+		bridge.throttle = throttle
 
 
 # loop
 
 print('')
 print('ready')
+print('')
 
+# wait for the startup command
 while True:
 
-	test = readControlFloat()
-	bridge.pitch = test
-	print(test)	
-	time.sleep(0.1)
+	if readByte() == 1:
+		if readByte() == 1:
+			if readByte() == 1:
+				print('armed')
+				break
 
-#	if readControlByte() == 1:
-#		print('command')
-#		kspControl(readControlByte())
+# begin parsing
+while True:
 
+	if readByte() == 0:
+		print('')
+		print('exit')
+		break
+
+	kspHelmUpdate() # updates control surfaces and throttle
+	kspOpsUpdate() # action groups, staging, etc
