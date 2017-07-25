@@ -35,7 +35,7 @@ time.sleep(1)
 def haveByte():
 	return control.in_waiting > 0
 
-def readByteB(): # blocking
+def readByteB(): # waits for a newline
 	return int(control.readline().strip())
 
 def readByte(): # 0 to 255
