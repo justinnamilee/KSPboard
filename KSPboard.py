@@ -45,7 +45,7 @@ def readByteRaw(): # 0 to 255
 	return int(control.read())
 
 def readFloat(): # -1 to 1
-	return (2.0 * (float(readByte()) - 127.5) / 255.0)
+	return (2.0 * (float(readByte()) - 127) / 255.0)
 
 def readUFloat(): # 0 to 1
 	return (readFloat() / 2.0) + 0.5
@@ -71,7 +71,6 @@ print('dictionary setup...')
 def KSP_launch(): # this fires main engine, waits 1 sec, then stages again
 	print('launch')
 	KSP_stage()
-	KSP_delay(1)
 	KSP_stage()
 
 def KSP_act(n):

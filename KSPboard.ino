@@ -11,10 +11,14 @@
 #define ENABLE 1
 #define DISABLE 0
 
+#define FULL 0xFF
+#define HALF 0x7F
+#define ZERO 0x00
+
 // serial
 #define SERIAL_SPEED 115200
 
-// pins
+// state pins
 #define PIN_LED 13 // status
 #define PIN_ENABLE 2 // this should be high to run
 // helm pins
@@ -24,21 +28,46 @@
 #define PIN_ROLL_R 9
 #define PIN_YAW_L 8
 #define PIN_YAW_R 7
-// helm visual pins for debug
-#define PIN_PITCH_UO 6
-#define PIN_PITCH_DO 5
-#define PIN_ROLL_LO 4
-#define PIN_ROLL_RO 3
+// ops pins
+#define PIN_OP_LAUNCH 6
+#define PIN_OP_STAGE 5
+#define PIN_OP_ACG3 4
+#define PIN_OP_ACG5 3
 
 // delays
-#define LOOP_DELAY 5
-#define START_DELAY 15
+#define DELAY_LOOP 15
+#define DELAY_START 30
+#define DELAY_OP 100
+
+// misc
+#define OPS (sizeof(opPin) / sizeof(byte))
 
 
-byte pinSwitch = 2;
-
+// helm control variables
 byte pitch, yaw, roll, throttle;
 
+// op control variables
+// state == 0 to DELAY_OP-1 -> off / debounce, state == DELAY_OP -> on
+byte opState[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+// operation pins set to zero are skipped
+byte opPin[] =
+{
+  0,             // null
+  0,             // action group 1
+  0,             // '' 2
+  PIN_OP_ACG3,   // '' 3
+  0,             // '' 4
+  PIN_OP_ACG5,   // '' 5
+  0,             // '' 6
+  0,             // '' 7
+  0,             // '' 8
+  0,             // '' 9
+  0,             // '' 10
+  PIN_OP_LAUNCH, //
+  PIN_OP_STAGE   //
+};
+
+// this controls whether the python script closes or not, 1 == run
 byte state = 1;
 
 
@@ -47,13 +76,7 @@ byte state = 1;
 
 byte readDirection(byte pinH, byte pinL)
 {
-  return (digitalRead(pinH) ? 0xFF : (digitalRead(pinL) ? 0x00 : 0x7F)); // high, low, or neutral
-}
-
-void outputDirection(byte dir, byte pinH, byte pinL)
-{
-  digitalWrite(pinH, !(dir == 255)); // pins must be ground to light up LED
-  digitalWrite(pinL, !(dir == 0)); 
+  return (digitalRead(pinH) ? FULL : (digitalRead(pinL) ? ZERO : HALF));
 }
 
 
@@ -87,13 +110,14 @@ void setupHelm()
   pinMode(PIN_ROLL_R, INPUT_PULLUP);
   pinMode(PIN_YAW_L, INPUT_PULLUP);
   pinMode(PIN_YAW_R, INPUT_PULLUP);
+}
 
-  pinMode(PIN_PITCH_UO, OUTPUT);
-  pinMode(PIN_PITCH_DO, OUTPUT);
-  pinMode(PIN_ROLL_LO, OUTPUT);
-  pinMode(PIN_ROLL_RO, OUTPUT);
-  //pinMode(PIN_PITCH_UO, OUTPUT);
-  //pinMode(PIN_PITCH_UO, OUTPUT);
+void setupOps()
+{
+  pinMode(PIN_OP_LAUNCH, INPUT_PULLUP);
+  pinMode(PIN_OP_STAGE, INPUT_PULLUP);
+  pinMode(PIN_OP_ACG3, INPUT_PULLUP);
+  pinMode(PIN_OP_ACG5, INPUT_PULLUP);
 }
 
 
@@ -118,10 +142,6 @@ void updateHelm()
   pitch = readDirection(PIN_PITCH_U, PIN_PITCH_D);
   roll = readDirection(PIN_ROLL_R, PIN_ROLL_L);
   yaw = readDirection(PIN_YAW_R, PIN_YAW_L);
-  // display on the LEDs
-  outputDirection(pitch, PIN_PITCH_UO, PIN_PITCH_DO);
-  outputDirection(roll, PIN_ROLL_RO, PIN_ROLL_LO);
-  //outputDirection(pitch, PIN_PITCH_UO, PIN_PITCH_DO);
 
   // helm are always sent without enable code
   Serial.println(pitch);
@@ -133,6 +153,37 @@ void updateHelm()
 
 void updateOps()
 {
+  byte ops = 0;
+  byte index = 0;
+
+
+  for (index = 0; index < OPS; index++)
+  {
+    if (!opPin[index]) // if the pin is zero, skip
+      continue;
+
+    if (opState[index] > 0) // check for debounce on current pin
+    {
+      opState[index]--; // decrement debounce counter for current state
+    }
+    else // if not we can check to see if it's triggered
+    {
+      opState[index] = digitalRead(opPin[index]) ? DELAY_OP : 0;
+      ops++;
+    }
+  }
+
+  if (ops > 0) // if we have at least one operation to send
+  {
+    Serial.println(ENABLE);
+
+    for (index = 0; index < OPS; index++)
+    {
+      if (opState[index] == DELAY_OP)
+        Serial.println(index); // print it
+    }
+  }
+
   Serial.println(DISABLE);
 }
 
@@ -146,7 +197,7 @@ void setup()
   setupState();
   setupHelm();
 
-  delay(START_DELAY);
+  delay(DELAY_START);
 }
 
 void loop()
@@ -160,6 +211,6 @@ void loop()
   }
 
   Serial.flush();
-  delay(LOOP_DELAY);
+  delay(DELAY_LOOP);
 }
 
