@@ -16,7 +16,7 @@
 
 // pins
 #define PIN_LED 13 // status
-#define PIN_ENABLE 3 // this should be high to run
+#define PIN_ENABLE 2 // this should be high to run
 // helm pins
 #define PIN_PITCH_U 12
 #define PIN_PITCH_D 11
@@ -24,10 +24,15 @@
 #define PIN_ROLL_R 9
 #define PIN_YAW_L 8
 #define PIN_YAW_R 7
+// helm visual pins for debug
+#define PIN_PITCH_UO 6
+#define PIN_PITCH_DO 5
+#define PIN_ROLL_LO 4
+#define PIN_ROLL_RO 3
 
 // delays
-#define LOOP_DELAY 1
-#define START_DELAY 5
+#define LOOP_DELAY 5
+#define START_DELAY 15
 
 
 byte pinSwitch = 2;
@@ -43,6 +48,12 @@ byte state = 1;
 byte readDirection(byte pinH, byte pinL)
 {
   return (digitalRead(pinH) ? 0xFF : (digitalRead(pinL) ? 0x00 : 0x7F)); // high, low, or neutral
+}
+
+void outputDirection(byte dir, byte pinH, byte pinL)
+{
+  digitalWrite(pinH, !(dir == 255)); // pins must be ground to light up LED
+  digitalWrite(pinL, !(dir == 0)); 
 }
 
 
@@ -76,6 +87,13 @@ void setupHelm()
   pinMode(PIN_ROLL_R, INPUT_PULLUP);
   pinMode(PIN_YAW_L, INPUT_PULLUP);
   pinMode(PIN_YAW_R, INPUT_PULLUP);
+
+  pinMode(PIN_PITCH_UO, OUTPUT);
+  pinMode(PIN_PITCH_DO, OUTPUT);
+  pinMode(PIN_ROLL_LO, OUTPUT);
+  pinMode(PIN_ROLL_RO, OUTPUT);
+  //pinMode(PIN_PITCH_UO, OUTPUT);
+  //pinMode(PIN_PITCH_UO, OUTPUT);
 }
 
 
@@ -89,9 +107,9 @@ void updateState()
   digitalWrite(PIN_LED, state);
 
   if (state)
-    Serial.print(ENABLE);
+    Serial.println(ENABLE);
   else
-    Serial.print(DISABLE);
+    Serial.println(DISABLE);
 }
 
 void updateHelm()
@@ -100,18 +118,22 @@ void updateHelm()
   pitch = readDirection(PIN_PITCH_U, PIN_PITCH_D);
   roll = readDirection(PIN_ROLL_R, PIN_ROLL_L);
   yaw = readDirection(PIN_YAW_R, PIN_YAW_L);
+  // display on the LEDs
+  outputDirection(pitch, PIN_PITCH_UO, PIN_PITCH_DO);
+  outputDirection(roll, PIN_ROLL_RO, PIN_ROLL_LO);
+  //outputDirection(pitch, PIN_PITCH_UO, PIN_PITCH_DO);
 
   // helm are always sent without enable code
-  Serial.print(pitch);
-  Serial.print(yaw);
-  Serial.print(roll);
+  Serial.println(pitch);
+  Serial.println(yaw);
+  Serial.println(roll);
 
-  Serial.print(throttle);
+  Serial.println(throttle);
 }
 
 void updateOps()
 {
-  Serial.print(DISABLE);
+  Serial.println(DISABLE);
 }
 
 
@@ -137,6 +159,7 @@ void loop()
     updateOps();
   }
 
+  Serial.flush();
   delay(LOOP_DELAY);
 }
 

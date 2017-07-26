@@ -17,6 +17,9 @@
 ###
 
 
+debug = True
+print('debug: {}'.format(debug))
+
 print('import...')
 
 import krpc # control ksp
@@ -35,10 +38,10 @@ time.sleep(1)
 def haveByte():
 	return control.in_waiting > 0
 
-def readByteB(): # waits for a newline
+def readByte(): # waits for a newline
 	return int(control.readline().strip())
 
-def readByte(): # 0 to 255
+def readByteRaw(): # 0 to 255
 	return int(control.read())
 
 def readFloat(): # -1 to 1
@@ -47,7 +50,7 @@ def readFloat(): # -1 to 1
 def readUFloat(): # 0 to 1
 	return (readFloat() / 2.0) + 0.5
 
-control.readline()
+control.readline() # chomp and garbage off the front of the stream
 
 
 # setup kRPC
@@ -73,20 +76,20 @@ def KSP_launch(): # this fires main engine, waits 1 sec, then stages again
 
 def KSP_act(n):
 	def KSP_act_call():
-		print('action: {}'.format(n))
+		debug and print('action: {}'.format(n))
 		bridge.toggle_action_group(n)
 	return KSP_act_call
 
 def KSP_delay(n):
-	print('delay: {}'.format(n))
+	debug and print('delay: {}'.format(n))
 	time.sleep(n)
 
 def KSP_stage():
-	print('stage')
+	debug and print('stage')
 	bridge.activate_next_stage()
 
 def KSP_null():
-	print('null')
+	debug and print('null')
 
 # control dictionary (look up table / switch)
 KSP_ops = {
@@ -108,7 +111,7 @@ KSP_ops = {
 
 # operations dictionary mapper
 def kspOps(c):
-	print('command: {}'.format(c))
+	debug and print('command: {}'.format(c))
 	KSP_ops[c]()
 
 def kspOpsUpdate():
@@ -138,10 +141,10 @@ KSP_helm = {
 def kspHelm(e, v=None):
 
 	if v is not None:
-		print('helm: update {}: {}'.format(e, v))
+		debug and print('helm: update {}: {}'.format(e, v))
 		KSP_helm[e] = v
 	else:
-		print('helm: current {}: {}'.format(e, KSP_helm[e]))
+		debug and print('helm: current {}: {}'.format(e, KSP_helm[e]))
 
 	return KSP_helm[e]
 
@@ -179,15 +182,16 @@ print('')
 # wait for the startup command
 while True:
 
-	if readByte() == 1:
-		if readByte() == 1:
-			if readByte() == 1:
+	if readByteRaw() == 1:
+		if readByteRaw() == 1:
+			if readByteRaw() == 1:
 				print('armed')
 				break
 
 # begin parsing
 while True:
 
+	# status check
 	if readByte() == 0:
 		print('')
 		print('exit')
