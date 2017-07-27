@@ -17,6 +17,6 @@ Arduino code and Python script for interacting with Kerbal Space Program using [
   * To use the script:
     * Flash Arduino.
     * Launch KSP.
-    * Load a craft any launch site.
+    * Load a craft at any launch site.
     * Start kRPC server in KSP.
     * Start Python script making sure Enable Pin is pulled HIGH on Arduino.
