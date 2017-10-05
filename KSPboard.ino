@@ -21,6 +21,7 @@
 // state pins
 #define PIN_LED 13 // status
 #define PIN_ENABLE 2 // this should be high to run
+
 // helm pins
 #define PIN_PITCH_U 12
 #define PIN_PITCH_D 11
@@ -28,6 +29,8 @@
 #define PIN_ROLL_R 9
 #define PIN_YAW_L 8
 #define PIN_YAW_R 7
+#define PIN_THROTTLE A0 // analog read
+
 // ops pins
 #define PIN_OP_LAUNCH 6
 #define PIN_OP_STAGE 5
@@ -41,6 +44,9 @@
 
 // misc
 #define OPS (sizeof(opPin) / sizeof(byte))
+
+#define ANALOG_MAX (float)1023 // these two are for converting 0-1023 to 0-100
+#define THOTTLE_MAX (float)100
 
 
 // helm control variables
@@ -74,9 +80,14 @@ byte state = 1;
 //// helper functions
 //
 
-byte readDirection(byte pinH, byte pinL)
+byte readDirection(byte pinH, byte pinL) // get control input
 {
   return (digitalRead(pinH) ? FULL : (digitalRead(pinL) ? ZERO : HALF));
+}
+
+byte readThrottle(byte pin) // get throttle input
+{
+  return ((byte) (((float)analogRead(pin) * THOTTLE_MAX) / ANALOG_MAX));
 }
 
 
@@ -148,6 +159,8 @@ void updateHelm()
   Serial.println(yaw);
   Serial.println(roll);
 
+  // read throttle
+  throttle = readThrottle(PIN_THROTTLE);
   Serial.println(throttle);
 }
 
@@ -196,7 +209,6 @@ void setup()
   setupSerial();
   setupState();
   setupHelm();
-  setupOps();
 
   delay(DELAY_START);
 }
@@ -214,4 +226,3 @@ void loop()
   Serial.flush();
   delay(DELAY_LOOP);
 }
-
