@@ -209,6 +209,7 @@ void setup()
   setupSerial();
   setupState();
   setupHelm();
+  setupOps();
 
   delay(DELAY_START);
 }
