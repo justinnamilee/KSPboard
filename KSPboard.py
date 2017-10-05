@@ -45,7 +45,7 @@ def readByteRaw(): # 0 to 255
 	return int(control.read())
 
 def readFloat(): # -1 to 1
-	return (2.0 * (float(readByte()) - 127) / 255.0)
+	return (2.0 * (float(readByte()) - 127.0) / 255.0)
 
 def readUFloat(): # 0 to 1
 	return (readFloat() / 2.0) + 0.5

@@ -46,7 +46,7 @@
 #define OPS (sizeof(opPin) / sizeof(byte))
 
 #define ANALOG_MAX (float)1023 // these two are for converting 0-1023 to 0-100
-#define THOTTLE_MAX (float)100
+#define THOTTLE_MAX (float)255
 
 
 // helm control variables
@@ -227,3 +227,4 @@ void loop()
   Serial.flush();
   delay(DELAY_LOOP);
 }
+
