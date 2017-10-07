@@ -224,7 +224,7 @@ void loop()
     updateOps();
   }
 
-  Serial.flush();
   delay(DELAY_LOOP);
+  Serial.flush();
 }
 
