@@ -108,7 +108,6 @@ void setupSerial()
 void setupState()
 {
   pinMode(PIN_LED, OUTPUT); // debug led
-  digitalWrite(PIN_LED, HIGH);
 
   pinMode(PIN_ENABLE, INPUT_PULLUP);
 }
