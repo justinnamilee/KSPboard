@@ -26,8 +26,8 @@ Arduino code and Python script for interacting with Kerbal Space Program using [
 
 # Parts Ordered: 2017-09-19
  * __40x__ SPDT Microswitch:  For the 10 custom actions, core action groups, etc.
- * ~~__2x__ Linear Slide Potentiometer:  One for trottle, one for pitch trim.~~ *Got in Mail and Wired up*
+ * ~~__2x__ Linear Slide Potentiometer:  One for trottle, one for pitch trim.~~ *Got In Mail 2017-10-05*
  * __1x__ 4/8-way Arcade Joystick: For pitch and roll control.
- * __3x__ Rotary Encorder: Thrust limiters, trim, etc.
+ * ~~__3x__ Rotary Encorder: Thrust limiters, trim, etc.~~ *Got in Mail 2017-10-16*
  * __2x__ Sewing Machine Foot Pedal: For yaw control.
- * __2x__ 16-port I/O Expander: To help connect it all up.
+ * ~~__2x__ 16-port I/O Expander: To help connect it all up.~~ *Got in Mail 2017-10-16*
