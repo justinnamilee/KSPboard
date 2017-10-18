@@ -23,10 +23,14 @@
 // helm pins
 #define PIN_PITCH_U 12
 #define PIN_PITCH_D 11
-#define PIN_ROLL_L 10
+#define PIN_PITCH_S 5 // axis stick flag
 #define PIN_ROLL_R 9
-#define PIN_YAW_L 8
+#define PIN_ROLL_L 10
+#define PIN_ROLL_S 4 // axis stick flag
 #define PIN_YAW_R 7
+#define PIN_YAW_L 8
+#define PIN_YAW_S 3 // axis stick flag
+
 #define PIN_THROTTLE A0 // analog read
 
 // rotary pins
@@ -41,7 +45,7 @@
 #define PIN_OP_ACG5 0
 
 // delays
-#define DELAY_LOOP 15
+#define DELAY_LOOP 1500
 #define DELAY_START 30
 #define DELAY_OP 100
 
@@ -55,6 +59,15 @@
 #define DIR_MAX 1023
 #define DIR_MIN -1023
 
+// convenience / shorthand
+#define PITCH_STICK digitalRead(PIN_PITCH_S)
+#define ROLL_STICK digitalRead(PIN_ROLL_S)
+#define YAW_STICK digitalRead(PIN_YAW_S)
+
+#define PITCH_PINS PIN_PITCH_U, PIN_PITCH_D
+#define ROLL_PINS PIN_ROLL_R, PIN_ROLL_L
+#define YAW_PINS PIN_YAW_R, PIN_YAW_L
+
 enum dir { full, half, zero };
 
 
@@ -62,7 +75,6 @@ enum dir { full, half, zero };
 int16_t pitch, yaw, roll;
 uint8_t throttle;
 int8_t pitch_adj, yaw_adj, roll_adj; // for ramping the directional input
-boolean pitch_stick = true, yaw_stick = false, roll_stick = false;
 
 // op control variables
 // state == 0 to DELAY_OP-1 -> off / debounce, state == DELAY_OP -> on
@@ -95,7 +107,7 @@ boolean state = 1;
 //// helper functions
 //
 
-int8_t readDirection(uint8_t pinH, uint8_t pinL, int8_t adj) // get control input
+int8_t getAdjustment(uint8_t pinH, uint8_t pinL, int8_t adj) // get control input
 {
   switch (digitalRead(pinH) ? full : (digitalRead(pinL) ? half : zero))
   {
@@ -103,7 +115,7 @@ int8_t readDirection(uint8_t pinH, uint8_t pinL, int8_t adj) // get control inpu
       if (adj++ >= RAMP_MAX)
         adj = RAMP_MAX;
       break;
-      
+
     case zero:
       if (adj-- <= RAMP_MIN)
         adj = RAMP_MIN;
@@ -112,11 +124,11 @@ int8_t readDirection(uint8_t pinH, uint8_t pinL, int8_t adj) // get control inpu
     default:
       adj = 0;
   }
-  
+
   return (adj);
 }
 
-int16_t setDirection(int16_t current, boolean stick, int8_t adj)
+int16_t getDirection(int16_t current, boolean stick, int8_t adj)
 {
   current += adj;
 
@@ -132,7 +144,7 @@ int16_t setDirection(int16_t current, boolean stick, int8_t adj)
   return (current);
 }
 
-uint8_t readThrottle(uint8_t pin) // get throttle input
+uint8_t getThrottle(uint8_t pin) // get throttle input
 {
   return ((uint8_t) (((float)analogRead(pin) * THOTTLE_MAX) / ANALOG_MAX));
 }
@@ -144,7 +156,7 @@ uint8_t readThrottle(uint8_t pin) // get throttle input
 void setupSerial()
 {
   Wire.begin(); // start up I/O expanders
-  
+
   Serial.begin(SERIAL_SPEED);
   Serial.println();
   Serial.flush();
@@ -165,18 +177,21 @@ void setupHelm()
 {
   pinMode(PIN_PITCH_U, INPUT_PULLUP);
   pinMode(PIN_PITCH_D, INPUT_PULLUP);
+  pinMode(PIN_PITCH_S, INPUT_PULLUP);
   pinMode(PIN_ROLL_L, INPUT_PULLUP);
   pinMode(PIN_ROLL_R, INPUT_PULLUP);
+  pinMode(PIN_ROLL_S, INPUT_PULLUP);
   pinMode(PIN_YAW_L, INPUT_PULLUP);
   pinMode(PIN_YAW_R, INPUT_PULLUP);
+  pinMode(PIN_YAW_S, INPUT_PULLUP);
 }
 
 void setupOps()
 {
-  pinMode(PIN_OP_LAUNCH, INPUT_PULLUP);
+  /*pinMode(PIN_OP_LAUNCH, INPUT_PULLUP);
   pinMode(PIN_OP_STAGE, INPUT_PULLUP);
   pinMode(PIN_OP_ACG3, INPUT_PULLUP);
-  pinMode(PIN_OP_ACG5, INPUT_PULLUP);
+  pinMode(PIN_OP_ACG5, INPUT_PULLUP);*/
 }
 
 
@@ -197,19 +212,18 @@ void updateState()
 
 void updateHelm()
 {
-  pitch_adj = readDirection(PIN_PITCH_U, PIN_PITCH_D, pitch_adj);
-  pitch = setDirection(pitch, pitch_adj, pitch_stick);
-  Serial.println(pitch)
-  
-  // roll
-  //
-  //
+  pitch_adj = getAdjustment(PITCH_PINS, pitch_adj);
+  pitch = getDirection(pitch, pitch_adj, PITCH_STICK);
+  Serial.println(pitch);
 
-  // yaw
-  //
-  //
+  roll_adj = getAdjustment(ROLL_PINS, roll_adj);
+  roll = getDirection(roll, roll_adj, ROLL_STICK);
+  Serial.println(roll);
 
-  throttle = readThrottle(PIN_THROTTLE);
+  yaw_adj = getAdjustment(YAW_PINS, yaw_adj);
+  yaw = getDirection(yaw, yaw_adj, YAW_STICK);
+
+  throttle = getThrottle(PIN_THROTTLE);
   Serial.println(throttle);
 }
 
@@ -256,7 +270,7 @@ void updateOps()
 void setup()
 {
   setupSerial();
-  
+
   setupState();
   setupHelm();
   setupOps();
@@ -275,7 +289,7 @@ void loop()
   }
 
   delay(DELAY_LOOP);
-  
+
   Serial.flush();
 }
 
