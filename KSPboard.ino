@@ -12,6 +12,7 @@
 
 #define ENABLE true
 #define DISABLE false
+#define NEUTRAL 2
 
 // serial
 #define SERIAL_SPEED 115200
@@ -45,7 +46,7 @@
 #define PIN_OP_ACG5 0
 
 // delays
-#define DELAY_LOOP 1500
+#define DELAY_LOOP 500
 #define DELAY_START 30
 #define DELAY_OP 100
 
@@ -53,7 +54,7 @@
 #define OPS (sizeof(opPin) / sizeof(uint8_t))
 
 #define ANALOG_MAX (float)1023 // these two are for converting 0-1023 to 0-100
-#define THOTTLE_MAX (float)INT8_MAX
+#define THOTTLE_MAX (float)UINT8_MAX
 #define RAMP_MAX 125
 #define RAMP_MIN -125
 #define DIR_MAX 1023
@@ -68,13 +69,10 @@
 #define ROLL_PINS PIN_ROLL_R, PIN_ROLL_L
 #define YAW_PINS PIN_YAW_R, PIN_YAW_L
 
-enum dir { full, half, zero };
-
 
 // helm control variables
-int16_t pitch, yaw, roll;
-uint8_t throttle;
-int8_t pitch_adj, yaw_adj, roll_adj; // for ramping the directional input
+int16_t pitch, yaw, roll, throttle;
+int8_t pitch_adj = 0, yaw_adj = 0, roll_adj = 0; // for ramping the direction input
 
 // op control variables
 // state == 0 to DELAY_OP-1 -> off / debounce, state == DELAY_OP -> on
@@ -109,18 +107,19 @@ boolean state = 1;
 
 int8_t getAdjustment(uint8_t pinH, uint8_t pinL, int8_t adj) // get control input
 {
-  switch (digitalRead(pinH) ? full : (digitalRead(pinL) ? half : zero))
+  switch (digitalRead(pinH) ? HIGH : (digitalRead(pinL) ? LOW : NEUTRAL))
   {
-    case full:
+    case HIGH:
       if (adj++ >= RAMP_MAX)
         adj = RAMP_MAX;
       break;
 
-    case zero:
+    case LOW:
       if (adj-- <= RAMP_MIN)
         adj = RAMP_MIN;
       break;
 
+    case NEUTRAL:
     default:
       adj = 0;
   }
@@ -128,12 +127,14 @@ int8_t getAdjustment(uint8_t pinH, uint8_t pinL, int8_t adj) // get control inpu
   return (adj);
 }
 
-int16_t getDirection(int16_t current, boolean stick, int8_t adj)
+int16_t getDirection(int16_t current, int8_t adj, boolean stick)
 {
-  current += adj;
-
-  if (!(adj || stick))
+  // reset current if no stick flag or if adj and current are opposite signs
+  if (!(adj || stick) || (current > 0 && adj < 0) || (current < 0 && adj > 0))
     current = 0;
+
+  current += adj;
+  
 
   if (current > DIR_MAX)
     current = DIR_MAX;
@@ -144,9 +145,9 @@ int16_t getDirection(int16_t current, boolean stick, int8_t adj)
   return (current);
 }
 
-uint8_t getThrottle(uint8_t pin) // get throttle input
+uint16_t getThrottle(uint8_t pin) // get throttle input
 {
-  return ((uint8_t) (((float)analogRead(pin) * THOTTLE_MAX) / ANALOG_MAX));
+  return (analogRead(pin));
 }
 
 
@@ -203,11 +204,7 @@ void updateState()
   // tells the python client when to close
   state = digitalRead(PIN_ENABLE);
   digitalWrite(PIN_LED, state);
-
-  if (state)
-    Serial.println(ENABLE);
-  else
-    Serial.println(DISABLE);
+  Serial.println(state);
 }
 
 void updateHelm()
@@ -222,6 +219,7 @@ void updateHelm()
 
   yaw_adj = getAdjustment(YAW_PINS, yaw_adj);
   yaw = getDirection(yaw, yaw_adj, YAW_STICK);
+  Serial.println(yaw);
 
   throttle = getThrottle(PIN_THROTTLE);
   Serial.println(throttle);
@@ -285,7 +283,7 @@ void loop()
   if (state)
   {
     updateHelm();
-    updateOps();
+    //updateOps();
   }
 
   delay(DELAY_LOOP);
