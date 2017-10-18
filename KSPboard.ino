@@ -4,23 +4,21 @@
 // controller.  See LICENSE and README
 // for more information.
 
+#include <Wire.h>
+
 
 /// pin configurations and constants
 //
 
-#define ENABLE 1
-#define DISABLE 0
-
-#define FULL 0xFF
-#define HALF 0x7F
-#define ZERO 0x00
+#define ENABLE true
+#define DISABLE false
 
 // serial
 #define SERIAL_SPEED 115200
 
 // state pins
 #define PIN_LED 13 // status
-#define PIN_ENABLE 2 // this should be high to run
+#define PIN_ENABLE A1 // this should be high to run
 
 // helm pins
 #define PIN_PITCH_U 12
@@ -31,11 +29,16 @@
 #define PIN_YAW_R 7
 #define PIN_THROTTLE A0 // analog read
 
+// rotary pins
+#define PIN_ROT_CLK 2
+#define PIN_ROT_DATA A2
+#define PIN_ROT_SW // no pin yet
+
 // ops pins
-#define PIN_OP_LAUNCH 6
-#define PIN_OP_STAGE 5
-#define PIN_OP_ACG3 4
-#define PIN_OP_ACG5 3
+#define PIN_OP_LAUNCH 0
+#define PIN_OP_STAGE 0
+#define PIN_OP_ACG3 0
+#define PIN_OP_ACG5 0
 
 // delays
 #define DELAY_LOOP 15
@@ -43,20 +46,29 @@
 #define DELAY_OP 100
 
 // misc
-#define OPS (sizeof(opPin) / sizeof(byte))
+#define OPS (sizeof(opPin) / sizeof(uint8_t))
 
 #define ANALOG_MAX (float)1023 // these two are for converting 0-1023 to 0-100
-#define THOTTLE_MAX (float)255
+#define THOTTLE_MAX (float)INT8_MAX
+#define RAMP_MAX 125
+#define RAMP_MIN -125
+#define DIR_MAX 1023
+#define DIR_MIN -1023
+
+enum dir { full, half, zero };
 
 
 // helm control variables
-byte pitch, yaw, roll, throttle;
+int16_t pitch, yaw, roll;
+uint8_t throttle;
+int8_t pitch_adj, yaw_adj, roll_adj; // for ramping the directional input
+boolean pitch_stick = true, yaw_stick = false, roll_stick = false;
 
 // op control variables
 // state == 0 to DELAY_OP-1 -> off / debounce, state == DELAY_OP -> on
-byte opState[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+uint8_t opState[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 // operation pins set to zero are skipped
-byte opPin[] =
+uint8_t opPin[] =
 {
   0,             // null
   0,             // action group 1
@@ -74,20 +86,55 @@ byte opPin[] =
 };
 
 // this controls whether the python script closes or not, 1 == run
-byte state = 1;
+boolean state = 1;
+
+// specialized control functions
+
 
 
 //// helper functions
 //
 
-byte readDirection(byte pinH, byte pinL) // get control input
+int8_t readDirection(uint8_t pinH, uint8_t pinL, int8_t adj) // get control input
 {
-  return (digitalRead(pinH) ? FULL : (digitalRead(pinL) ? ZERO : HALF));
+  switch (digitalRead(pinH) ? full : (digitalRead(pinL) ? half : zero))
+  {
+    case full:
+      if (adj++ >= RAMP_MAX)
+        adj = RAMP_MAX;
+      break;
+      
+    case zero:
+      if (adj-- <= RAMP_MIN)
+        adj = RAMP_MIN;
+      break;
+
+    default:
+      adj = 0;
+  }
+  
+  return (adj);
 }
 
-byte readThrottle(byte pin) // get throttle input
+int16_t setDirection(int16_t current, boolean stick, int8_t adj)
 {
-  return ((byte) (((float)analogRead(pin) * THOTTLE_MAX) / ANALOG_MAX));
+  current += adj;
+
+  if (!(adj || stick))
+    current = 0;
+
+  if (current > DIR_MAX)
+    current = DIR_MAX;
+
+  if (current < DIR_MIN)
+    current = DIR_MIN;
+
+  return (current);
+}
+
+uint8_t readThrottle(uint8_t pin) // get throttle input
+{
+  return ((uint8_t) (((float)analogRead(pin) * THOTTLE_MAX) / ANALOG_MAX));
 }
 
 
@@ -96,6 +143,8 @@ byte readThrottle(byte pin) // get throttle input
 
 void setupSerial()
 {
+  Wire.begin(); // start up I/O expanders
+  
   Serial.begin(SERIAL_SPEED);
   Serial.println();
   Serial.flush();
@@ -148,25 +197,26 @@ void updateState()
 
 void updateHelm()
 {
-  // get new values
-  pitch = readDirection(PIN_PITCH_U, PIN_PITCH_D);
-  roll = readDirection(PIN_ROLL_R, PIN_ROLL_L);
-  yaw = readDirection(PIN_YAW_R, PIN_YAW_L);
+  pitch_adj = readDirection(PIN_PITCH_U, PIN_PITCH_D, pitch_adj);
+  pitch = setDirection(pitch, pitch_adj, pitch_stick);
+  Serial.println(pitch)
+  
+  // roll
+  //
+  //
 
-  // helm are always sent without enable code
-  Serial.println(pitch);
-  Serial.println(yaw);
-  Serial.println(roll);
+  // yaw
+  //
+  //
 
-  // read throttle
   throttle = readThrottle(PIN_THROTTLE);
   Serial.println(throttle);
 }
 
 void updateOps()
 {
-  byte ops = 0;
-  byte index = 0;
+  uint8_t ops = 0;
+  uint8_t index = 0;
 
 
   for (index = 0; index < OPS; index++)
@@ -206,6 +256,7 @@ void updateOps()
 void setup()
 {
   setupSerial();
+  
   setupState();
   setupHelm();
   setupOps();
@@ -224,6 +275,7 @@ void loop()
   }
 
   delay(DELAY_LOOP);
+  
   Serial.flush();
 }
 
