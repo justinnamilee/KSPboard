@@ -46,7 +46,7 @@
 #define PIN_OP_ACG5 0
 
 // delays
-#define DELAY_LOOP 500
+#define DELAY_LOOP 100
 #define DELAY_START 30
 #define DELAY_OP 100
 
@@ -54,9 +54,9 @@
 #define OPS (sizeof(opPin) / sizeof(uint8_t))
 
 // helm
-#define RAMP_ADJUST 7
-#define RAMP_MAX 175
-#define RAMP_MIN -175
+#define RAMP_ADJUST 3
+#define RAMP_MAX 111
+#define RAMP_MIN -RAMP_MAX
 #define DIR_MAX 1023
 #define DIR_MIN -1023
 
@@ -109,12 +109,12 @@ int8_t getAdjustment(uint8_t pinH, uint8_t pinL, int8_t adj) // get control inpu
   switch (digitalRead(pinH) ? HIGH : (digitalRead(pinL) ? LOW : NEUTRAL))
   {
     case HIGH:
-      if ((adj += RAMP_ADJUST) >= RAMP_MAX)
+      if ((adj += RAMP_ADJUST) > RAMP_MAX)
         adj = RAMP_MAX;
       break;
 
     case LOW:
-      if ((adj -= RAMP_ADJUST) <= RAMP_MIN)
+      if ((adj -= RAMP_ADJUST) < RAMP_MIN)
         adj = RAMP_MIN;
       break;
 
@@ -130,16 +130,19 @@ int16_t getDirection(int16_t current, int8_t adj, boolean stick)
 {
   // reset current if no stick flag or if adj and current are opposite signs
   if (!(adj || stick) || (current > 0 && adj < 0) || (current < 0 && adj > 0))
+  {
     current = 0;
+  }
+  else
+  {
+    current += adj;
 
-  current += adj;
-  
-
-  if (current > DIR_MAX)
-    current = DIR_MAX;
-
-  if (current < DIR_MIN)
-    current = DIR_MIN;
+    if (current > DIR_MAX)
+      current = DIR_MAX;
+    else 
+      if (current < DIR_MIN)
+        current = DIR_MIN;
+  }
 
   return (current);
 }
@@ -189,9 +192,9 @@ void setupHelm()
 void setupOps()
 { // disabled while building the joystick control
   /*pinMode(PIN_OP_LAUNCH, INPUT_PULLUP);
-  pinMode(PIN_OP_STAGE, INPUT_PULLUP);
-  pinMode(PIN_OP_ACG3, INPUT_PULLUP);
-  pinMode(PIN_OP_ACG5, INPUT_PULLUP);*/
+    pinMode(PIN_OP_STAGE, INPUT_PULLUP);
+    pinMode(PIN_OP_ACG3, INPUT_PULLUP);
+    pinMode(PIN_OP_ACG5, INPUT_PULLUP);*/
 }
 
 
@@ -287,6 +290,7 @@ void loop()
 
   delay(DELAY_LOOP);
 
+  Serial.println();
   Serial.flush();
 }
 
