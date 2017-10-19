@@ -47,7 +47,7 @@
 #define IO_DEV_OPS 0
 
 // delays
-#define DELAY_LOOP 1000
+#define DELAY_LOOP 10
 #define DELAY_START 30
 #define DELAY_OP 100
 
@@ -127,7 +127,7 @@ int16_t getAdjustment(uint8_t pinH, uint8_t pinL, int8_t adj) // get control inp
 
 int16_t getDirection(int16_t current, int8_t adj, boolean stick)
 {
-  // reset current if no stick flag or if adj and current are opposite signs
+  // reset current if no adj&stick flag or if adj and current are opposite signs
   if (!(adj || stick) || (current > 0 && adj < 0) || (current < 0 && adj > 0))
   {
     current = 0;
