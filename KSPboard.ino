@@ -39,19 +39,20 @@
 #define PIN_ROT_DATA A2
 #define PIN_ROT_SW // no pin yet
 
-// ops pins
-#define PIN_OP_LAUNCH 0
-#define PIN_OP_STAGE 0
-#define PIN_OP_ACG3 0
-#define PIN_OP_ACG5 0
+// i2c addresses / stuff
+#define I2C_SUCCESS 0
+#define IO_ADDR_BASE 0x20
+#define IO_DATA_LENGTH 2
+
+#define IO_DEV_OPS 0
 
 // delays
-#define DELAY_LOOP 10
+#define DELAY_LOOP 1000
 #define DELAY_START 30
 #define DELAY_OP 100
 
 // misc
-#define OPS (sizeof(opPin) / sizeof(uint8_t))
+#define OPS 16
 
 // helm
 #define RAMP_MAX 50
@@ -59,6 +60,7 @@
 #define DIR_MAX 2000
 #define DIR_MIN -DIR_MAX
 
+// helper stuff for helm / shorthand
 #define PITCH_STICK digitalRead(PIN_PITCH_S)
 #define ROLL_STICK digitalRead(PIN_ROLL_S)
 #define YAW_STICK digitalRead(PIN_YAW_S)
@@ -74,50 +76,48 @@ int8_t pitchAdjust = 0, yawAdjust = 0, rollAdjust = 0; // for ramping the direct
 
 // op control variables
 // state == 0 to DELAY_OP-1 -> off / debounce, state == DELAY_OP -> on
-uint8_t opState[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-// operation pins set to zero are skipped
-uint8_t opPin[] = // this will hold bitmasks for i/o expander
-{
-  0,             // null
-  0,             // action group 1
-  0,             // '' 2
-  PIN_OP_ACG3,   // '' 3
-  0,             // '' 4
-  PIN_OP_ACG5,   // '' 5
-  0,             // '' 6
-  0,             // '' 7
-  0,             // '' 8
-  0,             // '' 9
-  0,             // '' 10
-  PIN_OP_LAUNCH, //
-  PIN_OP_STAGE   //
-};
+uint8_t opState[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 // this controls whether the python script closes or not, 1 == run
 boolean state = 1;
-
-// specialized control functions
-
 
 
 //// helper functions
 //
 
+// i/o expander helpers
+uint8_t requestDevice(uint8_t address) // ping the device / send start command
+{
+  Wire.beginTransmission(IO_ADDR_BASE | address);
+  return (Wire.endTransmission());
+}
+
+boolean requestData(uint8_t address) // returns success fail
+{
+  return (Wire.requestFrom(IO_ADDR_BASE | address, IO_DATA_LENGTH) == IO_DATA_LENGTH);
+}
+
+uint16_t readData() // get the data and stuff it into a 16-bit unsigned value
+{
+  return (~(Wire.read() | (Wire.read() << 8)));
+}
+
+// direction helpers
 int16_t getAdjustment(uint8_t pinH, uint8_t pinL, int8_t adj) // get control input
 {
   switch (digitalRead(pinH) ? HIGH : (digitalRead(pinL) ? LOW : NEUTRAL))
   {
-    case HIGH:
+    case HIGH: // pitch up / roll right / yaw right
       if (adj++ > RAMP_MAX)
         adj = RAMP_MAX;
       break;
 
-    case LOW:
+    case LOW: // pitch down / roll left / yaw left
       if (adj-- < RAMP_MIN)
         adj = RAMP_MIN;
       break;
 
-    case NEUTRAL:
+    case NEUTRAL: // stuck in the middle with you
     default:
       adj = 0;
   }
@@ -134,13 +134,12 @@ int16_t getDirection(int16_t current, int8_t adj, boolean stick)
   }
   else
   {
-    current += adj;
+    current += adj; // adjust current direction
 
-    if (current > DIR_MAX)
+    if (current > DIR_MAX) // keep the current direction in bounds
       current = DIR_MAX;
-    else
-      if (current < DIR_MIN)
-        current = DIR_MIN;
+    else if (current < DIR_MIN)
+      current = DIR_MIN;
   }
 
   return (current);
@@ -189,11 +188,8 @@ void setupHelm()
 }
 
 void setupOps()
-{ // disabled while building the joystick control
-  /*pinMode(PIN_OP_LAUNCH, INPUT_PULLUP);
-    pinMode(PIN_OP_STAGE, INPUT_PULLUP);
-    pinMode(PIN_OP_ACG3, INPUT_PULLUP);
-    pinMode(PIN_OP_ACG5, INPUT_PULLUP);*/
+{
+  // put check here for i/o expander??
 }
 
 
@@ -231,20 +227,24 @@ void updateOps()
   uint8_t ops = 0;
   uint8_t index = 0;
 
-
-  for (index = 0; index < OPS; index++)
+  if (requestDevice(IO_DEV_OPS) == I2C_SUCCESS) // send start, skip if failure
   {
-    if (!opPin[index]) // if the pin is zero, skip
-      continue;
-
-    if (opState[index] > 0) // check for debounce on current pin
+    if (requestData(IO_DEV_OPS)) // ask for data, skip if failure
     {
-      opState[index]--; // decrement debounce counter for current state
-    }
-    else // if not we can check to see if it's triggered
-    {
-      opState[index] = digitalRead(opPin[index]) ? DELAY_OP : 0;
-      ops++;
+      uint16_t data = readData(); // finally get the 2 byte data packet
+      
+      for (index = 0; index < OPS; index++) // scan through ops 1-16 (everything but sas)
+      {
+        if (opState[index] > 0) // check for debounce on current pin
+        {
+          opState[index]--; // decrement debounce counter for current state
+        }
+        else // if not we can check to see if it's triggered
+        {
+          opState[index] =  ((1 << index) & data) ? DELAY_OP : 0;
+          ops++;
+        }
+      }
     }
   }
 
@@ -284,7 +284,7 @@ void loop()
   if (state)
   {
     updateHelm();
-    //updateOps();
+    updateOps();
   }
 
   delay(DELAY_LOOP);
