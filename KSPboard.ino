@@ -46,7 +46,7 @@
 #define PIN_OP_ACG5 0
 
 // delays
-#define DELAY_LOOP 100
+#define DELAY_LOOP 10
 #define DELAY_START 30
 #define DELAY_OP 100
 
@@ -54,11 +54,10 @@
 #define OPS (sizeof(opPin) / sizeof(uint8_t))
 
 // helm
-#define RAMP_ADJUST 3
-#define RAMP_MAX 111
+#define RAMP_MAX 50
 #define RAMP_MIN -RAMP_MAX
-#define DIR_MAX 1023
-#define DIR_MIN -1023
+#define DIR_MAX 2000
+#define DIR_MIN -DIR_MAX
 
 #define PITCH_STICK digitalRead(PIN_PITCH_S)
 #define ROLL_STICK digitalRead(PIN_ROLL_S)
@@ -77,7 +76,7 @@ int8_t pitchAdjust = 0, yawAdjust = 0, rollAdjust = 0; // for ramping the direct
 // state == 0 to DELAY_OP-1 -> off / debounce, state == DELAY_OP -> on
 uint8_t opState[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 // operation pins set to zero are skipped
-uint8_t opPin[] =
+uint8_t opPin[] = // this will hold bitmasks for i/o expander
 {
   0,             // null
   0,             // action group 1
@@ -104,17 +103,17 @@ boolean state = 1;
 //// helper functions
 //
 
-int8_t getAdjustment(uint8_t pinH, uint8_t pinL, int8_t adj) // get control input
+int16_t getAdjustment(uint8_t pinH, uint8_t pinL, int8_t adj) // get control input
 {
   switch (digitalRead(pinH) ? HIGH : (digitalRead(pinL) ? LOW : NEUTRAL))
   {
     case HIGH:
-      if ((adj += RAMP_ADJUST) > RAMP_MAX)
+      if (adj++ > RAMP_MAX)
         adj = RAMP_MAX;
       break;
 
     case LOW:
-      if ((adj -= RAMP_ADJUST) < RAMP_MIN)
+      if (adj-- < RAMP_MIN)
         adj = RAMP_MIN;
       break;
 
@@ -139,7 +138,7 @@ int16_t getDirection(int16_t current, int8_t adj, boolean stick)
 
     if (current > DIR_MAX)
       current = DIR_MAX;
-    else 
+    else
       if (current < DIR_MIN)
         current = DIR_MIN;
   }
@@ -289,8 +288,6 @@ void loop()
   }
 
   delay(DELAY_LOOP);
-
-  Serial.println();
   Serial.flush();
 }
 
