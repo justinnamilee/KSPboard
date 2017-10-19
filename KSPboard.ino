@@ -71,7 +71,7 @@
 
 // helm control variables
 int16_t pitch, yaw, roll, throttle;
-int8_t pitch_adj = 0, yaw_adj = 0, roll_adj = 0; // for ramping the direction input
+int8_t pitchAdjust = 0, yawAdjust = 0, rollAdjust = 0; // for ramping the direction input
 
 // op control variables
 // state == 0 to DELAY_OP-1 -> off / debounce, state == DELAY_OP -> on
@@ -208,16 +208,16 @@ void updateState()
 
 void updateHelm()
 {
-  pitch_adj = getAdjustment(PITCH_PINS, pitch_adj);
-  pitch = getDirection(pitch, pitch_adj, PITCH_STICK);
+  pitchAdjust = getAdjustment(PITCH_PINS, pitchAdjust);
+  pitch = getDirection(pitch, pitchAdjust, PITCH_STICK);
   Serial.println(pitch);
 
-  roll_adj = getAdjustment(ROLL_PINS, roll_adj);
-  roll = getDirection(roll, roll_adj, ROLL_STICK);
+  rollAdjust = getAdjustment(ROLL_PINS, rollAdjust);
+  roll = getDirection(roll, rollAdjust, ROLL_STICK);
   Serial.println(roll);
 
-  yaw_adj = getAdjustment(YAW_PINS, yaw_adj);
-  yaw = getDirection(yaw, yaw_adj, YAW_STICK);
+  yawAdjust = getAdjustment(YAW_PINS, yawAdjust);
+  yaw = getDirection(yaw, yawAdjust, YAW_STICK);
   Serial.println(yaw);
 
   throttle = getThrottle(PIN_THROTTLE);
