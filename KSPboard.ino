@@ -53,14 +53,13 @@
 // misc
 #define OPS (sizeof(opPin) / sizeof(uint8_t))
 
-#define ANALOG_MAX (float)1023 // these two are for converting 0-1023 to 0-100
-#define THOTTLE_MAX (float)UINT8_MAX
-#define RAMP_MAX 125
-#define RAMP_MIN -125
+// helm
+#define RAMP_ADJUST 7
+#define RAMP_MAX 175
+#define RAMP_MIN -175
 #define DIR_MAX 1023
 #define DIR_MIN -1023
 
-// convenience / shorthand
 #define PITCH_STICK digitalRead(PIN_PITCH_S)
 #define ROLL_STICK digitalRead(PIN_ROLL_S)
 #define YAW_STICK digitalRead(PIN_YAW_S)
@@ -110,12 +109,12 @@ int8_t getAdjustment(uint8_t pinH, uint8_t pinL, int8_t adj) // get control inpu
   switch (digitalRead(pinH) ? HIGH : (digitalRead(pinL) ? LOW : NEUTRAL))
   {
     case HIGH:
-      if (adj++ >= RAMP_MAX)
+      if ((adj += RAMP_ADJUST) >= RAMP_MAX)
         adj = RAMP_MAX;
       break;
 
     case LOW:
-      if (adj-- <= RAMP_MIN)
+      if ((adj -= RAMP_ADJUST) <= RAMP_MIN)
         adj = RAMP_MIN;
       break;
 
@@ -188,7 +187,7 @@ void setupHelm()
 }
 
 void setupOps()
-{
+{ // disabled while building the joystick control
   /*pinMode(PIN_OP_LAUNCH, INPUT_PULLUP);
   pinMode(PIN_OP_STAGE, INPUT_PULLUP);
   pinMode(PIN_OP_ACG3, INPUT_PULLUP);
