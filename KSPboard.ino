@@ -1,14 +1,24 @@
+//////////////////////////////////////////
 /// Justin Lee <justin at kitten dot pink>
 //
 // Arduino driver for the KSPboard game
 // controller.  See LICENSE and README
 // for more information.
 
+
+/////////////
+/// libraries
+//
+
+
 #include <Wire.h>
 
 
+
+////////////////////////////////////
 /// pin configurations and constants
 //
+
 
 #define ENABLE true
 #define DISABLE false
@@ -35,9 +45,9 @@
 #define PIN_THROTTLE A0 // analog read
 
 // rotary pins
-#define PIN_ROT_CLK 2
-#define PIN_ROT_DATA A2
-#define PIN_ROT_SW // no pin yet
+#define PIN_ROT_CTRL_CLK 2
+#define PIN_ROT_CTRL_DATA A2
+#define PIN_ROT_CTRL_SW A3 // no pin yet
 
 // i2c addresses / stuff
 #define I2C_SUCCESS 0
@@ -50,9 +60,10 @@
 #define DELAY_LOOP 10
 #define DELAY_START 30
 #define DELAY_OP 100
+#define DELAY_CTRL 100
 
 // misc
-#define OPS 16
+#define OPS 16 // Action 1-10, stage, gear, light, rcs, brake, abort
 
 // helm
 #define RAMP_MAX 50
@@ -70,20 +81,51 @@
 #define YAW_PINS PIN_YAW_R, PIN_YAW_L
 
 
+
+///////////
+/// globals
+//
+
+
 // helm control variables
 int16_t pitch, yaw, roll, throttle;
 int8_t pitchAdjust = 0, yawAdjust = 0, rollAdjust = 0; // for ramping the direction input
 
+// sas control variable
+volatile uint8_t _vol_rotaryControl = 0; // 0-255 for conversion to sas states
+uint8_t controlState = 0, controlLocked = 0; // 0-7 for all sas states
+uint8_t controlDebounce = 0;
+
 // op control variables
 // state == 0 to DELAY_OP-1 -> off / debounce, state == DELAY_OP -> on
+// Basically if this is not equal to DELAY_OP then it is in debounce state
+// or off (zero).  When it is equal to DELAY_OP then it fires the op code out
+// over serial. This allows multi switch debounce in a convenient package.
 uint8_t opState[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 // this controls whether the python script closes or not, 1 == run
 boolean state = 1;
 
 
+
+/////////////////////
 //// helper functions
 //
+
+
+// interrupt for the SAS rotary dial & helper
+void rotaryInterruptHandler()
+{
+  if (digitalRead(PIN_ROT_CTRL_CLK))
+    _vol_rotaryControl += digitalRead(PIN_ROT_CTRL_DATA) ? 1 : -1;
+  else
+    _vol_rotaryControl -= digitalRead(PIN_ROT_CTRL_DATA) ? 1 : -1;
+}
+
+uint8_t rotaryControl2State(uint8_t c)
+{
+  return ((uint8_t)((6.0 * (float)c) / (float)UINT8_MAX));
+}
 
 // i/o expander helpers
 uint8_t requestDevice(uint8_t address) // ping the device / send start command
@@ -97,7 +139,7 @@ boolean requestData(uint8_t address) // returns success fail
   return (Wire.requestFrom(IO_ADDR_BASE | address, IO_DATA_LENGTH) == IO_DATA_LENGTH);
 }
 
-uint16_t readData() // get the data and stuff it into a 16-bit unsigned value
+uint16_t readData() // get the data bytes and stuff them into a 16-bit unsigned value
 {
   return (~(Wire.read() | (Wire.read() << 8)));
 }
@@ -125,24 +167,24 @@ int16_t getAdjustment(uint8_t pinH, uint8_t pinL, int8_t adj) // get control inp
   return (adj);
 }
 
-int16_t getDirection(int16_t current, int8_t adj, boolean stick)
+int16_t getDirection(int16_t dir, int8_t adj, boolean stick)
 {
   // reset current if no adj&stick flag or if adj and current are opposite signs
-  if (!(adj || stick) || (current > 0 && adj < 0) || (current < 0 && adj > 0))
+  if (!(adj || stick) || (dir > 0 && adj < 0) || (dir < 0 && adj > 0))
   {
-    current = 0;
+    dir = 0; // reset current direction to neatral
   }
   else
   {
-    current += adj; // adjust current direction
+    dir += adj; // adjust current direction
 
-    if (current > DIR_MAX) // keep the current direction in bounds
-      current = DIR_MAX;
-    else if (current < DIR_MIN)
-      current = DIR_MIN;
+    if (dir > DIR_MAX) // keep the current direction in bounds
+      dir = DIR_MAX;
+    else if (dir < DIR_MIN)
+      dir = DIR_MIN;
   }
 
-  return (current);
+  return (dir);
 }
 
 uint16_t getThrottle(uint8_t pin) // get throttle input
@@ -151,8 +193,11 @@ uint16_t getThrottle(uint8_t pin) // get throttle input
 }
 
 
+
+////////////////////
 //// setup fucntions
 //
+
 
 void setupSerial()
 {
@@ -165,6 +210,14 @@ void setupSerial()
   Serial.print(1); // enable code, super secure
   Serial.print(1);
   Serial.print(1);
+}
+
+void setupControl()
+{
+  attachInterrupt(
+    digitalPinToInterrupt(PIN_ROT_CTRL_CLK),
+    rotaryInterruptHandler,
+    FALLING);
 }
 
 void setupState()
@@ -193,8 +246,47 @@ void setupOps()
 }
 
 
+
+/////////////////////
 //// update fucntions
 //
+
+
+void updateControl()
+{
+  uint8_t roter = 0; // setup space
+  
+  noInterrupts(); // shutdown interrupts for this volatile operation
+  roter = _vol_rotaryControl; // copy the volatile control variable
+  interrupts(); // reenable interrupts immediately
+
+  uint8_t state = rotaryControl2State(roter);
+
+  if (state != controlState)
+  {
+    controlState = state; // update the hilighted state
+
+    // do hiligting stuff //
+  }
+
+  if (controlDebounce > 0) 
+  {
+    controlDebounce--; // do dat sweet digi debounce
+  }
+  else 
+  {
+    if (digitalRead(PIN_ROT_CTRL_SW)) // if you press dis switch lock the sas control state
+    {
+      controlLocked = controlState; // update local variable
+      
+      Serial.println("this is where the good stuff goes, fuck yeah");
+
+      controlDebounce = DELAY_CTRL; // reset delay
+    }
+  }
+
+  Serial.println(DISABLE); // skip or end transmission
+}
 
 void updateState()
 {
@@ -263,13 +355,17 @@ void updateOps()
 }
 
 
+
+///////////////////////////////
 //// built-in arduino functions
 //
+
 
 void setup()
 {
   setupSerial();
 
+  setupControl();
   setupState();
   setupHelm();
   setupOps();
@@ -283,8 +379,9 @@ void loop()
 
   if (state)
   {
-    updateHelm();
-    updateOps();
+    updateControl();
+   updateHelm();
+   updateOps();
   }
 
   delay(DELAY_LOOP);
