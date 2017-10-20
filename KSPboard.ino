@@ -131,7 +131,7 @@ uint8_t rotaryControl2State(uint8_t c)
 uint8_t requestDevice(uint8_t address) // ping the device / send start command
 {
   Wire.beginTransmission(IO_ADDR_BASE | address);
-  return (Wire.endTransmission());
+  return (Wire.endTransmission()); // returns success fail
 }
 
 boolean requestData(uint8_t address) // returns success fail
@@ -255,7 +255,7 @@ void setupOps()
 void updateControl()
 {
   uint8_t roter = 0; // setup space
-  
+
   noInterrupts(); // shutdown interrupts for this volatile operation
   roter = _vol_rotaryControl; // copy the volatile control variable
   interrupts(); // reenable interrupts immediately
@@ -269,16 +269,16 @@ void updateControl()
     // do hiligting stuff //
   }
 
-  if (controlDebounce > 0) 
+  if (controlDebounce > 0)
   {
     controlDebounce--; // do dat sweet digi debounce
   }
-  else 
+  else
   {
     if (digitalRead(PIN_ROT_CTRL_SW)) // if you press dis switch lock the sas control state
     {
       controlLocked = controlState; // update local variable
-      
+
       Serial.println("this is where the good stuff goes, fuck yeah");
 
       controlDebounce = DELAY_CTRL; // reset delay
@@ -324,7 +324,7 @@ void updateOps()
     if (requestData(IO_DEV_OPS)) // ask for data, skip if failure
     {
       uint16_t data = readData(); // finally get the 2 byte data packet
-      
+
       for (index = 0; index < OPS; index++) // scan through ops 1-16 (everything but sas)
       {
         if (opState[index] > 0) // check for debounce on current pin
@@ -380,8 +380,8 @@ void loop()
   if (state)
   {
     updateControl();
-   updateHelm();
-   updateOps();
+    updateHelm();
+    updateOps();
   }
 
   delay(DELAY_LOOP);
