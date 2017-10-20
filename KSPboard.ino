@@ -54,7 +54,7 @@
 #define IO_ADDR_BASE 0x20
 #define IO_DATA_LENGTH 2
 
-#define IO_DEV_OPS 0
+#define IO_DEVICE_OPS 0
 
 // delays
 #define DELAY_LOOP 10
@@ -117,12 +117,12 @@ boolean state = 1;
 void rotaryInterruptHandler()
 {
   if (digitalRead(PIN_ROT_CTRL_CLK))
-    _vol_rotaryControl += digitalRead(PIN_ROT_CTRL_DATA) ? 1 : -1;
+    _vol_rotaryControl += digitalRead(PIN_ROT_CTRL_DATA) ? 1 : -1; // cw
   else
-    _vol_rotaryControl -= digitalRead(PIN_ROT_CTRL_DATA) ? 1 : -1;
+    _vol_rotaryControl -= digitalRead(PIN_ROT_CTRL_DATA) ? 1 : -1; // ccw
 }
 
-uint8_t rotaryControl2State(uint8_t c)
+uint8_t rotaryControl2State(uint8_t c) // this should be moved to python client
 {
   return ((uint8_t)((6.0 * (float)c) / (float)UINT8_MAX));
 }
@@ -189,7 +189,7 @@ int16_t getDirection(int16_t dir, int8_t adj, boolean stick)
 
 uint16_t getThrottle(uint8_t pin) // get throttle input
 {
-  return (analogRead(pin));
+  return (analogRead(pin)); // this used to do more
 }
 
 
@@ -214,6 +214,7 @@ void setupSerial()
 
 void setupControl()
 {
+  // the rotary encore uses two wire differential signalling
   attachInterrupt(
     digitalPinToInterrupt(PIN_ROT_CTRL_CLK),
     rotaryInterruptHandler,
@@ -298,6 +299,7 @@ void updateState()
 
 void updateHelm()
 {
+  // update control surface inputs
   pitchAdjust = getAdjustment(PITCH_PINS, pitchAdjust);
   pitch = getDirection(pitch, pitchAdjust, PITCH_STICK);
   Serial.println(pitch);
@@ -310,6 +312,7 @@ void updateHelm()
   yaw = getDirection(yaw, yawAdjust, YAW_STICK);
   Serial.println(yaw);
 
+  // update our current throttle input level
   throttle = getThrottle(PIN_THROTTLE);
   Serial.println(throttle);
 }
@@ -319,9 +322,9 @@ void updateOps()
   uint8_t ops = 0;
   uint8_t index = 0;
 
-  if (requestDevice(IO_DEV_OPS) == I2C_SUCCESS) // send start, skip if failure
+  if (requestDevice(IO_DEVICE_OPS) == I2C_SUCCESS) // send start, skip if failure
   {
-    if (requestData(IO_DEV_OPS)) // ask for data, skip if failure
+    if (requestData(IO_DEVICE_OPS)) // ask for data, skip if failure
     {
       uint16_t data = readData(); // finally get the 2 byte data packet
 
@@ -333,6 +336,9 @@ void updateOps()
         }
         else // if not we can check to see if it's triggered
         {
+          // scan through 0b0000000000000001 to 0b1000000000000000 masks
+          // if that switch is 1 then set it's state to DELAY_OP to flag
+          // it to be sent out over serial, otherwise set it to zero
           opState[index] =  ((1 << index) & data) ? DELAY_OP : 0;
           ops++;
         }
@@ -342,16 +348,17 @@ void updateOps()
 
   if (ops > 0) // if we have at least one operation to send
   {
-    Serial.println(ENABLE);
+    Serial.println(ENABLE); // send ops enable because we have at least one op
 
     for (index = 0; index < OPS; index++)
     {
+      // for each state that's flagged...
       if (opState[index] == DELAY_OP)
         Serial.println(index); // print it
     }
   }
 
-  Serial.println(DISABLE);
+  Serial.println(DISABLE); // send skip / end tramission flag
 }
 
 
