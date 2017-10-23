@@ -128,18 +128,18 @@ uint8_t rotaryControl2State(uint8_t c) // this should be moved to python client
 }
 
 // i/o expander helpers
-uint8_t requestDevice(uint8_t address) // ping the device / send start command
+boolean i2cRequestDevice(uint8_t address) // ping the device / send start command
 {
   Wire.beginTransmission(IO_ADDR_BASE | address);
-  return (Wire.endTransmission()); // returns success fail
+  return (Wire.endTransmission() == I2C_SUCCESS); // returns success / fail only
 }
 
-boolean requestData(uint8_t address) // returns success fail
+boolean i2cRequestData(uint8_t address) // returns success fail
 {
   return (Wire.requestFrom(IO_ADDR_BASE | address, IO_DATA_LENGTH) == IO_DATA_LENGTH);
 }
 
-uint16_t readData() // get the data bytes and stuff them into a 16-bit unsigned value
+uint16_t i2cReadData() // get the data bytes and stuff them into a 16-bit unsigned value
 {
   return (~(Wire.read() | (Wire.read() << 8)));
 }
@@ -322,11 +322,11 @@ void updateOps()
   uint8_t ops = 0;
   uint8_t index = 0;
 
-  if (requestDevice(IO_DEVICE_OPS) == I2C_SUCCESS) // send start, skip if failure
+  if (i2cRequestDevice(IO_DEVICE_OPS)) // send start signal, skip if not success
   {
-    if (requestData(IO_DEVICE_OPS)) // ask for data, skip if failure
+    if (i2cRequestData(IO_DEVICE_OPS)) // ask for data, skip if failure
     {
-      uint16_t data = readData(); // finally get the 2 byte data packet
+      uint16_t data = i2cReadData(); // finally get the 2 byte data packet
 
       for (index = 0; index < OPS; index++) // scan through ops 1-16 (everything but sas)
       {
