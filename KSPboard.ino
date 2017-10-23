@@ -172,7 +172,7 @@ int16_t getDirection(int16_t dir, int8_t adj, boolean stick)
   // reset current if no adj&stick flag or if adj and current are opposite signs
   if (!(adj || stick) || (dir > 0 && adj < 0) || (dir < 0 && adj > 0))
   {
-    dir = 0; // reset current direction to neatral
+    dir = 0; // reset current direction to neutral
   }
   else
   {
@@ -214,7 +214,7 @@ void setupSerial()
 
 void setupControl()
 {
-  // the rotary encore uses two wire differential signalling
+  // the rotary encoder uses two wire differential signalling
   attachInterrupt(
     digitalPinToInterrupt(PIN_ROT_CTRL_CLK),
     rotaryInterruptHandler,
@@ -278,7 +278,7 @@ void updateControl()
   {
     if (digitalRead(PIN_ROT_CTRL_SW)) // if you press dis switch lock the sas control state
     {
-      controlLocked = controlState; // update local variable
+      controlLocked = controlState; // update locked variable
 
       Serial.println("this is where the good stuff goes, fuck yeah");
 
