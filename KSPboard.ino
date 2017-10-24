@@ -22,7 +22,7 @@
 
 #define ENABLE true
 #define DISABLE false
-#define NEUTRAL 2
+#define NEUTRAL 2 // the natural extension to HIGH and LOW ;-)
 
 // serial
 #define SERIAL_SPEED 115200
@@ -57,10 +57,11 @@
 #define IO_DEVICE_OPS 0
 
 // delays
-#define DELAY_LOOP 10
+#define DELAY_LOOP 10 // these are milliseconds
 #define DELAY_START 30
 #define DELAY_OP 100
 #define DELAY_CTRL 100
+#define DELAY_MATRIX 3 // this is in microseconds
 
 // misc
 #define OPS 16 // Action 1-10, stage, gear, light, rcs, brake, abort
@@ -88,6 +89,7 @@
 
 
 // helm control variables
+// convert to structure for storage savings?
 int16_t pitch, yaw, roll, throttle;
 int8_t pitchAdjust = 0, yawAdjust = 0, rollAdjust = 0; // for ramping the direction input
 
@@ -145,6 +147,7 @@ uint16_t i2cReadData() // get the data bytes and stuff them into a 16-bit unsign
 }
 
 // direction helpers
+//convert to matrix
 int16_t getAdjustment(uint8_t pinH, uint8_t pinL, int8_t adj) // get control input
 {
   switch (digitalRead(pinH) ? HIGH : (digitalRead(pinL) ? LOW : NEUTRAL))
@@ -159,8 +162,8 @@ int16_t getAdjustment(uint8_t pinH, uint8_t pinL, int8_t adj) // get control inp
         adj = RAMP_MIN;
       break;
 
-    case NEUTRAL: // stuck in the middle with you
     default:
+    case NEUTRAL: // stuck in the middle with you
       adj = 0;
   }
 
@@ -230,6 +233,7 @@ void setupState()
 
 void setupHelm()
 {
+  //convert to matrix
   pinMode(PIN_PITCH_U, INPUT_PULLUP);
   pinMode(PIN_PITCH_D, INPUT_PULLUP);
   pinMode(PIN_PITCH_S, INPUT_PULLUP);
@@ -261,16 +265,16 @@ void updateControl()
   roter = _vol_rotaryControl; // copy the volatile control variable
   interrupts(); // reenable interrupts immediately
 
-  uint8_t state = rotaryControl2State(roter);
+  uint8_t newState = rotaryControl2State(roter);
 
-  if (state != controlState)
+  if (newState != controlState)
   {
-    controlState = state; // update the hilighted state
+    controlState = newState; // update the hilighted state
 
     // do hiligting stuff //
   }
 
-  if (controlDebounce > 0)
+  if (controlDebounce > 0) // 
   {
     controlDebounce--; // do dat sweet digi debounce
   }
@@ -299,6 +303,7 @@ void updateState()
 
 void updateHelm()
 {
+  //convert to matrix
   // update control surface inputs
   pitchAdjust = getAdjustment(PITCH_PINS, pitchAdjust);
   pitch = getDirection(pitch, pitchAdjust, PITCH_STICK);
@@ -340,7 +345,9 @@ void updateOps()
           // if that switch is 1 then set it's state to DELAY_OP to flag
           // it to be sent out over serial, otherwise set it to zero
           opState[index] =  ((1 << index) & data) ? DELAY_OP : 0;
-          ops++;
+
+          // increase the operations counter 
+          ops++; 
         }
       }
     }
