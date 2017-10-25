@@ -13,6 +13,7 @@
 
 
 #include <Wire.h>
+#include <avr/pgmspace.h>
 
 
 
@@ -20,6 +21,7 @@
 /// pin configurations and constants
 //
 
+#define DEBUG 1 // comment out to disable debug
 
 #define ENABLE true
 #define DISABLE false
@@ -38,7 +40,6 @@
 #define PIN_HELM_MAT_ROWS (PIN_HELM_MAT_ROW + PIN_HELM_MAT_DIM)
 #define PIN_HELM_MAT_COL  7
 #define PIN_HELM_MAT_COLS (PIN_HELM_MAT_COL + PIN_HELM_MAT_DIM)
-
 
 #define MASKED_PITCH_U helm | 0b100000000
 #define MASKED_PITCH_D helm | 0b010000000
@@ -67,8 +68,8 @@
 // delays
 #define DELAY_LOOP 10 // these are milliseconds
 #define DELAY_START 30
-#define DELAY_OP 100
 #define DELAY_CTRL 100
+#define DELAY_OP 100
 
 // misc
 #define OPS 16 // Action 1-10, stage, gear, light, rcs, brake, abort
@@ -156,7 +157,7 @@ uint16_t helmReadMatrix()
 
     for (col = PIN_HELM_MAT_COL; col < PIN_HELM_MAT_COLS; col++)
     {
-      matrix <<= digitalRead(col); // shift in the next column bit
+      matrix <<= !digitalRead(col); // invert and shift in the next column bit
     }
 
     digitalWrite(row, HIGH); // turn off the active-low row
@@ -300,7 +301,9 @@ void updateControl()
     {
       controlLocked = controlState; // update locked variable
 
-      Serial.println("this is the krpc call to change sas state");
+#ifdef DEBUG
+      Serial.println(F("this is the krpc call to change sas state"));
+#endif
 
       controlDebounce = DELAY_CTRL; // reset delay
     }
@@ -322,7 +325,13 @@ void updateHelm()
   // get the matrix state used in the pitch/roll/yaw masks below
   uint16_t helm = helmReadMatrix();
 
+#ifdef DEBUG
+  Serial.print(F(" => maxtrix:\n\t"));
+  Serial.println(helm, BIN);
+#endif
+
   // update control surface inputs
+  // the MASKED_ contants have "helm | DIR_MASK_x" format for convenience
   pitchAdjust = helmGetAdjustment(MASKED_PITCH_U, MASKED_PITCH_D, pitchAdjust);
   pitch = helmGetDirection(pitch, pitchAdjust, MASKED_PITCH_S);
   Serial.println(pitch);
