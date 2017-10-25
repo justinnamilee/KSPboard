@@ -6,6 +6,7 @@
 // for more information.
 
 
+
 /////////////
 /// libraries
 //
@@ -31,16 +32,23 @@
 #define PIN_LED 13 // status
 #define PIN_ENABLE A1 // this should be high to run
 
-// helm pins
-#define PIN_PITCH_U 12
-#define PIN_PITCH_D 11
-#define PIN_PITCH_S 5 // axis stick flag
-#define PIN_ROLL_R 9
-#define PIN_ROLL_L 10
-#define PIN_ROLL_S 4 // axis stick flag
-#define PIN_YAW_R 7
-#define PIN_YAW_L 8
-#define PIN_YAW_S 3 // axis stick flag
+// helm pins, matrix pins, and shorthand for helm masks
+#define PIN_HELM_MAT_DIM  3
+#define PIN_HELM_MAT_ROW  4
+#define PIN_HELM_MAT_ROWS (PIN_HELM_MAT_ROW + PIN_HELM_MAT_DIM)
+#define PIN_HELM_MAT_COL  7
+#define PIN_HELM_MAT_COLS (PIN_HELM_MAT_COL + PIN_HELM_MAT_DIM)
+
+
+#define MASKED_PITCH_U helm | 0b100000000
+#define MASKED_PITCH_D helm | 0b010000000
+#define MASKED_PITCH_S helm | 0b001000000
+#define MASKED_ROLL_R  helm | 0b000100000
+#define MASKED_ROLL_L  helm | 0b000010000
+#define MASKED_ROLL_S  helm | 0b000001000
+#define MASKED_YAW_R   helm | 0b000000100
+#define MASKED_YAW_L   helm | 0b000000010
+#define MASKED_YAW_S   helm | 0b000000001
 
 #define PIN_THROTTLE A0 // analog read
 
@@ -61,7 +69,6 @@
 #define DELAY_START 30
 #define DELAY_OP 100
 #define DELAY_CTRL 100
-#define DELAY_MATRIX 3 // this is in microseconds
 
 // misc
 #define OPS 16 // Action 1-10, stage, gear, light, rcs, brake, abort
@@ -71,15 +78,6 @@
 #define RAMP_MIN -RAMP_MAX
 #define DIR_MAX 2000
 #define DIR_MIN -DIR_MAX
-
-// helper stuff for helm / shorthand
-#define PITCH_STICK digitalRead(PIN_PITCH_S)
-#define ROLL_STICK digitalRead(PIN_ROLL_S)
-#define YAW_STICK digitalRead(PIN_YAW_S)
-
-#define PITCH_PINS PIN_PITCH_U, PIN_PITCH_D
-#define ROLL_PINS PIN_ROLL_R, PIN_ROLL_L
-#define YAW_PINS PIN_YAW_R, PIN_YAW_L
 
 
 
@@ -147,10 +145,29 @@ uint16_t i2cReadData() // get the data bytes and stuff them into a 16-bit unsign
 }
 
 // direction helpers
-//convert to matrix
-int16_t getAdjustment(uint8_t pinH, uint8_t pinL, int8_t adj) // get control input
+uint16_t helmReadMatrix()
 {
-  switch (digitalRead(pinH) ? HIGH : (digitalRead(pinL) ? LOW : NEUTRAL))
+  uint16_t matrix = 0;
+  uint8_t row = 0, col = 0;
+
+  for (row = PIN_HELM_MAT_ROW; row < PIN_HELM_MAT_ROWS; row++)
+  {
+    digitalWrite(row, LOW); // turn on the active-low row
+
+    for (col = PIN_HELM_MAT_COL; col < PIN_HELM_MAT_COLS; col++)
+    {
+      matrix <<= digitalRead(col); // shift in the next column bit
+    }
+
+    digitalWrite(row, HIGH); // turn off the active-low row
+  }
+
+  return (matrix);
+}
+
+int16_t helmGetAdjustment(uint8_t high, uint8_t low, int8_t adj) // get control input
+{
+  switch (high ? HIGH : (low ? LOW : NEUTRAL)) // high trumps low
   {
     case HIGH: // pitch up / roll right / yaw right
       if (adj++ > RAMP_MAX)
@@ -170,7 +187,7 @@ int16_t getAdjustment(uint8_t pinH, uint8_t pinL, int8_t adj) // get control inp
   return (adj);
 }
 
-int16_t getDirection(int16_t dir, int8_t adj, boolean stick)
+int16_t helmGetDirection(int16_t dir, int8_t adj, boolean stick)
 {
   // reset current if no adj&stick flag or if adj and current are opposite signs
   if (!(adj || stick) || (dir > 0 && adj < 0) || (dir < 0 && adj > 0))
@@ -233,16 +250,15 @@ void setupState()
 
 void setupHelm()
 {
-  //convert to matrix
-  pinMode(PIN_PITCH_U, INPUT_PULLUP);
-  pinMode(PIN_PITCH_D, INPUT_PULLUP);
-  pinMode(PIN_PITCH_S, INPUT_PULLUP);
-  pinMode(PIN_ROLL_L, INPUT_PULLUP);
-  pinMode(PIN_ROLL_R, INPUT_PULLUP);
-  pinMode(PIN_ROLL_S, INPUT_PULLUP);
-  pinMode(PIN_YAW_L, INPUT_PULLUP);
-  pinMode(PIN_YAW_R, INPUT_PULLUP);
-  pinMode(PIN_YAW_S, INPUT_PULLUP);
+  // rows are output, and cols are input
+  // here we setup the input_pullup pinMode for the cols
+
+  uint8_t index = 0;
+
+  for (index = PIN_HELM_MAT_COL; index < PIN_HELM_MAT_COLS; index++)
+  {
+    pinMode(index, INPUT_PULLUP); // active low matrix
+  }
 }
 
 void setupOps()
@@ -274,7 +290,7 @@ void updateControl()
     // do hiligting stuff //
   }
 
-  if (controlDebounce > 0) // 
+  if (controlDebounce > 0) //
   {
     controlDebounce--; // do dat sweet digi debounce
   }
@@ -284,7 +300,7 @@ void updateControl()
     {
       controlLocked = controlState; // update locked variable
 
-      Serial.println("this is where the good stuff goes, fuck yeah");
+      Serial.println("this is the krpc call to change sas state");
 
       controlDebounce = DELAY_CTRL; // reset delay
     }
@@ -303,18 +319,20 @@ void updateState()
 
 void updateHelm()
 {
-  //convert to matrix
+  // get the matrix state used in the pitch/roll/yaw masks below
+  uint16_t helm = helmReadMatrix();
+
   // update control surface inputs
-  pitchAdjust = getAdjustment(PITCH_PINS, pitchAdjust);
-  pitch = getDirection(pitch, pitchAdjust, PITCH_STICK);
+  pitchAdjust = helmGetAdjustment(MASKED_PITCH_U, MASKED_PITCH_D, pitchAdjust);
+  pitch = helmGetDirection(pitch, pitchAdjust, MASKED_PITCH_S);
   Serial.println(pitch);
 
-  rollAdjust = getAdjustment(ROLL_PINS, rollAdjust);
-  roll = getDirection(roll, rollAdjust, ROLL_STICK);
+  rollAdjust = helmGetAdjustment(MASKED_ROLL_R, MASKED_ROLL_L, rollAdjust);
+  roll = helmGetDirection(roll, rollAdjust, MASKED_ROLL_S);
   Serial.println(roll);
 
-  yawAdjust = getAdjustment(YAW_PINS, yawAdjust);
-  yaw = getDirection(yaw, yawAdjust, YAW_STICK);
+  yawAdjust = helmGetAdjustment(MASKED_YAW_R, MASKED_YAW_L, yawAdjust);
+  yaw = helmGetDirection(yaw, yawAdjust, MASKED_YAW_S);
   Serial.println(yaw);
 
   // update our current throttle input level
@@ -346,8 +364,8 @@ void updateOps()
           // it to be sent out over serial, otherwise set it to zero
           opState[index] =  ((1 << index) & data) ? DELAY_OP : 0;
 
-          // increase the operations counter 
-          ops++; 
+          // increase the operations counter
+          ops++;
         }
       }
     }
