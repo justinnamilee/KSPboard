@@ -41,15 +41,15 @@
 #define PIN_HELM_MAT_COL  7
 #define PIN_HELM_MAT_COLS (PIN_HELM_MAT_COL + PIN_HELM_MAT_DIM)
 
-#define MASKED_PITCH_U helm | 0b100000000
-#define MASKED_PITCH_D helm | 0b010000000
-#define MASKED_PITCH_S helm | 0b001000000
-#define MASKED_ROLL_R  helm | 0b000100000
-#define MASKED_ROLL_L  helm | 0b000010000
-#define MASKED_ROLL_S  helm | 0b000001000
-#define MASKED_YAW_R   helm | 0b000000100
-#define MASKED_YAW_L   helm | 0b000000010
-#define MASKED_YAW_S   helm | 0b000000001
+#define MASKED_PITCH_U helm & 0b100000000
+#define MASKED_PITCH_D helm & 0b010000000
+#define MASKED_PITCH_S helm & 0b001000000
+#define MASKED_ROLL_R  helm & 0b000100000
+#define MASKED_ROLL_L  helm & 0b000010000
+#define MASKED_ROLL_S  helm & 0b000001000
+#define MASKED_YAW_R   helm & 0b000000100
+#define MASKED_YAW_L   helm & 0b000000010
+#define MASKED_YAW_S   helm & 0b000000001
 
 #define PIN_THROTTLE A0 // analog read
 
@@ -355,7 +355,7 @@ void updateHelm()
 #endif
 */
   // update control surface inputs
-  // the MASKED_ contants have "helm | DIR_MASK_x" format for convenience
+  // the MASKED_ contants have "helm & DIR_MASK_x" format for convenience
   pitchAdjust = helmGetAdjustment(MASKED_PITCH_U, MASKED_PITCH_D, pitchAdjust);
   pitch = helmGetDirection(pitch, pitchAdjust, MASKED_PITCH_S);
   Serial.println(pitch);
