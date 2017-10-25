@@ -152,40 +152,23 @@ uint16_t helmReadMatrix()
   uint16_t matrix = 0;
   uint8_t row = 0, col = 0;
 
-#ifdef DEBUG
-  Serial.println(F(" => matrix"));
-#endif
-
   for (row = PIN_HELM_MAT_ROW; row < PIN_HELM_MAT_ROWS; row++)
   {
     digitalWrite(row, LOW); // turn on the active-low row
 
     for (col = PIN_HELM_MAT_COL; col < PIN_HELM_MAT_COLS; col++)
     {
-      boolean switchState = !digitalRead(col); // get inverted result
-      matrix <<= switchState; // and shift it onto the matrix
-
-#ifdef DEBUG
-      Serial.print(F("\t"));
-      Serial.print(switchState);
-#endif
+      // get inverted result and shift it onto the matrix
+      matrix = (matrix << 1) | !digitalRead(col); // wish there was <<=
     }
 
     digitalWrite(row, HIGH); // turn off the active-low row
-
-#ifdef DEBUG
-    Serial.println();
-#endif
   }
-
-#ifdef DEBUG
-  Serial.println();
-#endif
 
   return (matrix);
 }
 
-int16_t helmGetAdjustment(uint8_t high, uint8_t low, int8_t adj) // get control input
+int16_t helmGetAdjustment(boolean high, boolean low, int8_t adj) // get control input
 {
   switch (high ? HIGH : (low ? LOW : NEUTRAL)) // high trumps low
   {
@@ -282,6 +265,7 @@ void setupHelm()
 
   for (index = PIN_HELM_MAT_ROW; index < PIN_HELM_MAT_ROWS; index++)
   {
+    pinMode(index, OUTPUT);
     digitalWrite(index, HIGH); // pull these up to 5V so current cannot flow
   }
 }
@@ -348,12 +332,7 @@ void updateHelm()
 {
   // get the matrix state used in the pitch/roll/yaw masks below
   uint16_t helm = helmReadMatrix();
-/*
-#ifdef DEBUG
-  Serial.print(F(" => maxtrix:\n\t"));
-  Serial.println(helm, BIN);
-#endif
-*/
+
   // update control surface inputs
   // the MASKED_ contants have "helm & DIR_MASK_x" format for convenience
   pitchAdjust = helmGetAdjustment(MASKED_PITCH_U, MASKED_PITCH_D, pitchAdjust);
@@ -453,6 +432,7 @@ void loop()
   delay(DELAY_LOOP);
 #else
   delay(DELAY_DEBUG);
+  Serial.println(); // separates the data packets with a newline
 #endif
 
   Serial.flush();
