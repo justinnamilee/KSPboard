@@ -17,7 +17,7 @@
 ###
 
 
-debug = True
+debug = False
 print('debug: {}'.format(debug))
 
 print('import...')
@@ -35,20 +35,20 @@ print('serial setup...')
 control = serial.Serial('COM6', 115200)
 time.sleep(1)
 
-def haveByte():
+def haveLine():
 	return control.in_waiting > 0
 
-def readByte(): # waits for a newline
+def readInt(): # waits for a newline
 	return int(control.readline().strip())
 
-def readByteRaw(): # 0 to 255
+def readIntRaw(): # 0 to 255
 	return int(control.read())
 
-def readFloat(): # -1 to 1
-	return (2.0 * (float(readByte()) - 127.0) / 255.0)
+def readDirection(): # -1 to 1
+	return (float(readInt()) / 2000.0) # -2000 to 2000
 
-def readUFloat(): # 0 to 1
-	return (readFloat() / 2.0) + 0.5
+def readThottle(): # 0 to 1
+	return (float(readInt()) / 1023.0) # analog read max
 
 control.readline() # chomp and garbage off the front of the stream
 
@@ -57,7 +57,7 @@ control.readline() # chomp and garbage off the front of the stream
 
 print('kRPC setup...')
 ksp = krpc.connect(name='KSPboard')
-craft = ksp.space_center.active_vessel
+craft = ksp.space_center.active_vessel # should be in a try/catch
 bridge = craft.control
 kspControlLock = False
 
@@ -67,11 +67,6 @@ print('craft: {}'.format(craft.name))
 # setup available KSP functions
 
 print('dictionary setup...')
-
-def KSP_launch(): # this fires main engine, waits 1 sec, then stages again
-	print('launch')
-	KSP_stage()
-	KSP_stage()
 
 def KSP_act(n):
 	def KSP_act_call():
@@ -83,12 +78,38 @@ def KSP_delay(n):
 	debug and print('delay: {}'.format(n))
 	time.sleep(n)
 
+def KSP_null():
+	debug and print('null')
+
 def KSP_stage():
 	debug and print('stage')
 	bridge.activate_next_stage()
 
-def KSP_null():
-	debug and print('null')
+def KSP_gear():
+	debug and print('gear')
+	oldState = bridge.gear
+	bridge.gear = not oldState 
+
+def KSP_light():
+	debug and print('light')
+	oldState = bridge.lights
+	bridge.lights = not oldState
+
+def KSP_rcs():
+	debug and print('rcs')
+	oldState = bridge.rcs
+	bridge.rcs = not oldState
+
+def KSP_brakes():
+	debug and print('brakes')
+	oldState = bridge.brakes
+	bridge.brakes = not oldState
+
+def KSP_abort():
+	debug and print('abort')
+	oldState = bridge.abort
+	bridge.abort
+
 
 # control dictionary (look up table / switch)
 KSP_ops = {
@@ -103,9 +124,12 @@ KSP_ops = {
 	8  : KSP_act(8),
 	9  : KSP_act(9),
 	10 : KSP_act(10),
-	11 : KSP_launch,
-	12 : KSP_stage,
-# 
+	11 : KSP_stage,
+	12 : KSP_gear,
+	13 : KSP_light,
+	14 : KSP_rcs,
+	15 : KSP_brakes,
+	16 : KSP_abort,
 }
 
 # operations dictionary mapper
@@ -115,13 +139,13 @@ def kspOps(c):
 
 def kspOpsUpdate():
 
-	if readByte() == 1:
+	if readInt() == 1:
 		command = []
-		state = readByte()
+		state = readInt()
 
 		while state != 0:
 			command.append(state) # get command list
-			state = readByte() # get next command
+			state = readInt() # get next command
 
 		for c in command:
 			kspOps(c) # execute in order
@@ -150,10 +174,10 @@ def kspHelm(e, v=None):
 
 def kspHelmUpdate():
 
-	pitch = readFloat()
-	yaw = readFloat()
-	roll = readFloat()
-	throttle = readUFloat()
+	pitch = readDirection()
+	yaw = readDirection()
+	roll = readDirection()
+	throttle = readThottle()
 
 	if pitch != kspHelm('pitch'):
 		kspHelm('pitch', pitch)
@@ -181,9 +205,9 @@ print('')
 # wait for the startup command
 while True:
 
-	if readByteRaw() == 1:
-		if readByteRaw() == 1:
-			if readByteRaw() == 1:
+	if readIntRaw() == 1:
+		if readIntRaw() == 1:
+			if readIntRaw() == 1:
 				print('armed')
 				break
 
@@ -191,7 +215,7 @@ while True:
 while True:
 
 	# status check
-	if readByte() == 0:
+	if readInt() == 0:
 		print('')
 		print('exit')
 		break

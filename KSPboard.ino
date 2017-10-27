@@ -67,7 +67,7 @@
 
 // delays
 #define DELAY_LOOP 10 // these are milliseconds
-#define DELAY_DEBUG 750
+#define DELAY_DEBUG 250
 #define DELAY_START 30
 #define DELAY_CTRL 100
 #define DELAY_OP 100
@@ -126,7 +126,7 @@ void rotaryInterruptHandler()
 
 uint8_t rotaryControl2State(uint8_t c) // this should be moved to python client
 {
-  return ((uint8_t)((6.0 * (float)c) / (float)UINT8_MAX));
+  return ((uint8_t)((6.0 * (float)c) / (float)(UINT8_MAX - 1)));
 }
 
 // i/o expander helpers
@@ -212,7 +212,7 @@ int16_t helmGetDirection(int16_t dir, int8_t adj, boolean stick)
 
 uint16_t getThrottle(uint8_t pin) // get throttle input
 {
-  return (analogRead(pin)); // this used to do more
+  return (analogRead(pin)); // this used to do more...now it doesn't
 }
 
 
@@ -237,6 +237,12 @@ void setupSerial()
 
 void setupControl()
 {
+  // when you click the dial
+  pinMode(PIN_ROT_CTRL_SW, INPUT);
+
+  // set the data line as input as well
+  pinMode(PIN_ROT_CTRL_DATA, INPUT);
+  
   // the rotary encoder uses two wire differential signalling
   attachInterrupt(
     digitalPinToInterrupt(PIN_ROT_CTRL_CLK),
