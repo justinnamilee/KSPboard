@@ -76,7 +76,7 @@
 #define OPS 16 // Action 1-10, stage, gear, light, rcs, brake, abort
 
 // helm
-#define RAMP_MAX 50
+#define RAMP_MAX 65
 #define RAMP_MIN -RAMP_MAX
 #define DIR_MAX 2000
 #define DIR_MIN -DIR_MAX
@@ -238,7 +238,7 @@ void setupSerial()
 void setupControl()
 {
   // when you click the dial
-  pinMode(PIN_ROT_CTRL_SW, INPUT);
+  pinMode(PIN_ROT_CTRL_SW, INPUT_PULLUP);
 
   // set the data line as input as well
   pinMode(PIN_ROT_CTRL_DATA, INPUT);
