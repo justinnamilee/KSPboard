@@ -27,6 +27,10 @@
 #define DISABLE false
 #define NEUTRAL 2 // the natural extension to HIGH and LOW ;-)
 
+// high byte / low byte macros
+#define HI(Q) ((uint8_t) ((0xFF00 & Q) >> 8))
+#define LO(Q) ((uint8_t) (0x00FF & Q))
+
 // serial
 #define SERIAL_SPEED 115200
 
@@ -103,7 +107,8 @@ uint8_t controlDebounce = 0;
 // Basically if this is not equal to DELAY_OP then it is in debounce state
 // or off (zero).  When it is equal to DELAY_OP then it fires the op code out
 // over serial. This allows multi switch debounce in a convenient package.
-uint8_t opState[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+uint8_t opDebounce[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+uint16_t opState = 0; // holds current switch state
 
 // this controls whether the python script closes or not, 1 == run
 boolean state = 1;
@@ -224,13 +229,13 @@ uint16_t getThrottle(uint8_t pin) // get throttle input
 
 void setupSerial()
 {
-  Wire.begin(); // start up I/O expanders
-
+  // start up serial interface
   Serial.begin(SERIAL_SPEED);
   Serial.println();
   Serial.flush();
 
-  Serial.print(1); // enable code, super secure
+  // serial enable code, super secure
+  Serial.print(1);
   Serial.print(1);
   Serial.print(1);
 }
@@ -240,7 +245,7 @@ void setupControl()
   // when you click the dial
   pinMode(PIN_ROT_CTRL_SW, INPUT_PULLUP);
 
-  // set the data line as input as well
+  // set the data line as input as well (has internal pull up)
   pinMode(PIN_ROT_CTRL_DATA, INPUT);
   
   // the rotary encoder uses two wire differential signalling
@@ -260,25 +265,28 @@ void setupState()
 void setupHelm()
 {
   // rows are output, and cols are input
-  // here we setup the input_pullup pinMode for the cols
-
   uint8_t index = 0;
 
+  // here we setup the input_pullup pinMode for the cols
   for (index = PIN_HELM_MAT_COL; index < PIN_HELM_MAT_COLS; index++)
   {
     pinMode(index, INPUT_PULLUP); // active low matrix
   }
 
+  // then pull these up to 5V so current cannot flow
   for (index = PIN_HELM_MAT_ROW; index < PIN_HELM_MAT_ROWS; index++)
   {
     pinMode(index, OUTPUT);
-    digitalWrite(index, HIGH); // pull these up to 5V so current cannot flow
+    digitalWrite(index, HIGH); 
   }
 }
 
 void setupOps()
 {
-  // put check here for i/o expander??
+  // start up I/O expander(s)
+  Wire.begin();
+
+  // ping the expanders to make sure they are operational
 }
 
 
@@ -303,6 +311,8 @@ void updateControl()
     controlState = newState; // update the hilighted state
 
     // do hiligting stuff //
+
+    Serial.print(F("new state => ")); Serial.println(newState);
   }
 
   if (controlDebounce > 0) //
@@ -311,7 +321,7 @@ void updateControl()
   }
   else
   {
-    if (digitalRead(PIN_ROT_CTRL_SW)) // if you press dis switch lock the sas control state
+    if (!digitalRead(PIN_ROT_CTRL_SW)) // if you press dis switch lock the sas control state
     {
       controlLocked = controlState; // update locked variable
 
@@ -371,16 +381,23 @@ void updateOps()
 
       for (index = 0; index < OPS; index++) // scan through ops 1-16 (everything but sas)
       {
-        if (opState[index] > 0) // check for debounce on current pin
+        if (opDebounce[index] > 0) // check for debounce on current pin
         {
-          opState[index]--; // decrement debounce counter for current state
+          opDebounce[index]--; // decrement debounce counter for current state
         }
         else // if not we can check to see if it's triggered
         {
+          uint16_t opMask = 1 << index; // get and save the current mask
+          
           // scan through 0b0000000000000001 to 0b1000000000000000 masks
           // if that switch is 1 then set it's state to DELAY_OP to flag
           // it to be sent out over serial, otherwise set it to zero
-          opState[index] =  ((1 << index) & data) ? DELAY_OP : 0;
+          opDebounce[index] =  (opMask & data) ? DELAY_OP : 0; // DELAY_OP signals state change
+
+          if (opState & opMask) // if it's on turn it off
+            opState &= ~opMask;
+          else                  // or vice versa
+            opState |= opMask;
 
           // increase the operations counter
           ops++;
@@ -396,8 +413,11 @@ void updateOps()
     for (index = 0; index < OPS; index++)
     {
       // for each state that's flagged...
-      if (opState[index] == DELAY_OP)
+      if (opDebounce[index] == DELAY_OP)
+      {
         Serial.println(index); // print it
+        Serial.println((boolean)(opState & (1 << index))); // print it's state
+      }
     }
   }
 
