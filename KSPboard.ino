@@ -21,6 +21,7 @@
 /// pin configurations and constants
 //
 
+
 #define DEBUG 1 // comment out to disable debug
 
 #define ENABLE true
@@ -65,9 +66,9 @@
 // i2c addresses / stuff
 #define I2C_SUCCESS 0
 #define IO_ADDR_BASE 0x20
-#define IO_DATA_LENGTH 2
 
-#define IO_DEVICE_OPS 0
+#define IO_OPS_ADDR 0
+#define IO_OPS_LENGTH 2
 
 // delays
 #define DELAY_LOOP 10 // these are milliseconds
@@ -141,9 +142,9 @@ boolean i2cRequestDevice(uint8_t address) // ping the device / send start comman
   return (Wire.endTransmission() == I2C_SUCCESS); // returns success / fail only
 }
 
-boolean i2cRequestData(uint8_t address) // returns success fail
+boolean i2cRequestData(uint8_t address, uint8_t len)
 {
-  return (Wire.requestFrom(IO_ADDR_BASE | address, IO_DATA_LENGTH) == IO_DATA_LENGTH);
+  return (Wire.requestFrom(IO_ADDR_BASE | address, len) == len); // returns success fail
 }
 
 uint16_t i2cReadData() // get the data bytes and stuff them into a 16-bit unsigned value
@@ -157,6 +158,7 @@ uint16_t helmReadMatrix()
   uint16_t matrix = 0;
   uint8_t row = 0, col = 0;
 
+  // read the 3x3 multiplexed switch matrix
   for (row = PIN_HELM_MAT_ROW; row < PIN_HELM_MAT_ROWS; row++)
   {
     digitalWrite(row, LOW); // turn on the active-low row
@@ -173,7 +175,8 @@ uint16_t helmReadMatrix()
   return (matrix);
 }
 
-int16_t helmGetAdjustment(boolean high, boolean low, int8_t adj) // get control input
+// get control input
+int16_t helmGetAdjustment(boolean high, boolean low, int8_t adj)
 {
   switch (high ? HIGH : (low ? LOW : NEUTRAL)) // high trumps low
   {
@@ -195,6 +198,7 @@ int16_t helmGetAdjustment(boolean high, boolean low, int8_t adj) // get control 
   return (adj);
 }
 
+// takes the current dir vector, the adjust value, and the sticky flag and gets the new dir
 int16_t helmGetDirection(int16_t dir, int8_t adj, boolean stick)
 {
   // reset current if no adj&stick flag or if adj and current are opposite signs
@@ -247,7 +251,7 @@ void setupControl()
 
   // set the data line as input as well (has internal pull up)
   pinMode(PIN_ROT_CTRL_DATA, INPUT);
-  
+
   // the rotary encoder uses two wire differential signalling
   attachInterrupt(
     digitalPinToInterrupt(PIN_ROT_CTRL_CLK),
@@ -277,7 +281,7 @@ void setupHelm()
   for (index = PIN_HELM_MAT_ROW; index < PIN_HELM_MAT_ROWS; index++)
   {
     pinMode(index, OUTPUT);
-    digitalWrite(index, HIGH); 
+    digitalWrite(index, HIGH);
   }
 }
 
@@ -373,9 +377,9 @@ void updateOps()
   uint8_t ops = 0;
   uint8_t index = 0;
 
-  if (i2cRequestDevice(IO_DEVICE_OPS)) // send start signal, skip if not success
+  if (i2cRequestDevice(IO_OPS_ADDR)) // send start signal, skip if not success
   {
-    if (i2cRequestData(IO_DEVICE_OPS)) // ask for data, skip if failure
+    if (i2cRequestData(IO_OPS_ADDR, IO_OPS_LENGTH)) // ask for data, skip if failure
     {
       uint16_t data = i2cReadData(); // finally get the 2 byte data packet
 
@@ -388,7 +392,7 @@ void updateOps()
         else // if not we can check to see if it's triggered
         {
           uint16_t opMask = 1 << index; // get and save the current mask
-          
+
           // scan through 0b0000000000000001 to 0b1000000000000000 masks
           // if that switch is 1 then set it's state to DELAY_OP to flag
           // it to be sent out over serial, otherwise set it to zero
