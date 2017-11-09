@@ -61,11 +61,13 @@
 // rotary pins
 #define PIN_ROT_CTRL_CLK 2
 #define PIN_ROT_CTRL_DATA A2
-#define PIN_ROT_CTRL_SW A3 // no pin yet
+#define PIN_ROT_CTRL_SW A3 // when you push the rotary switch in
+#define PIN_ROT_CTRL_EN A6 // sas on / off
 
 // i2c addresses / stuff
 #define I2C_SUCCESS 0
 #define IO_ADDR_BASE 0x20
+// also note the wire library uses pins A4, A5
 
 #define IO_OPS_ADDR 0
 #define IO_OPS_LENGTH 2
@@ -80,10 +82,10 @@
 // misc
 #define OPS 16 // Action 1-10, stage, gear, light, rcs, brake, abort
 
-// helm
-#define RAMP_MAX 65
+// helm, with velocity ramping
+#define RAMP_MAX 100
 #define RAMP_MIN -RAMP_MAX
-#define DIR_MAX 2000
+#define DIR_MAX 6000
 #define DIR_MIN -DIR_MAX
 
 
@@ -101,7 +103,8 @@ int8_t pitchAdjust = 0, yawAdjust = 0, rollAdjust = 0; // for ramping the direct
 // sas control variable
 volatile uint8_t _vol_rotaryControl = 0; // 0-255 for conversion to sas states
 uint8_t controlState = 0, controlLocked = 0; // 0-7 for all sas states
-uint8_t controlDebounce = 0;
+uint8_t controlDebounce = 0; // debounce for the jittery rotary control switch
+boolean controlEnable = false; // for the sas on / off switch
 
 // op control variables
 // state == 0 to DELAY_OP-1 -> off / debounce, state == DELAY_OP -> on
@@ -147,7 +150,9 @@ boolean i2cRequestData(uint8_t address, uint8_t len)
   return (Wire.requestFrom(IO_ADDR_BASE | address, len) == len); // returns success fail
 }
 
-uint16_t i2cReadData() // get the data bytes and stuff them into a 16-bit unsigned value
+// get the data bytes and stuff them into a 16-bit unsigned value
+// call more than once if you have more than 2 bytes
+uint16_t i2cReadData()
 {
   return (~(Wire.read() | (Wire.read() << 8)));
 }
@@ -165,7 +170,7 @@ uint16_t helmReadMatrix()
 
     for (col = PIN_HELM_MAT_COL; col < PIN_HELM_MAT_COLS; col++)
     {
-      // get inverted result and shift it onto the matrix
+      // get inverted result (matrix is active low) and shift it onto the matrix
       matrix = (matrix << 1) | !digitalRead(col); // wish there was <<=
     }
 
@@ -175,7 +180,7 @@ uint16_t helmReadMatrix()
   return (matrix);
 }
 
-// get control input
+// get control input and set the new adjust value
 int16_t helmGetAdjustment(boolean high, boolean low, int8_t adj)
 {
   switch (high ? HIGH : (low ? LOW : NEUTRAL)) // high trumps low
@@ -302,40 +307,54 @@ void setupOps()
 
 void updateControl()
 {
-  uint8_t roter = 0; // setup space
+  boolean newControlEnable = digitalRead(PIN_ROT_CTRL_EN);
 
-  noInterrupts(); // shutdown interrupts for this volatile operation
-  roter = _vol_rotaryControl; // copy the volatile control variable
-  interrupts(); // reenable interrupts immediately
-
-  uint8_t newState = rotaryControl2State(roter);
-
-  if (newState != controlState)
+  // if it was on and now its off
+  if (controlEnable && !newControlEnable)
   {
-    controlState = newState; // update the hilighted state
-
-    // do hiligting stuff //
-
-    Serial.print(F("new state => ")); Serial.println(newState);
+    Serial.println(DISABLE); // send disable sequence
   }
+  else if (controlEnable || newControlEnable)
+  {
+    uint8_t roter = 0; // setup space
 
-  if (controlDebounce > 0) //
-  {
-    controlDebounce--; // do dat sweet digi debounce
-  }
-  else
-  {
-    if (!digitalRead(PIN_ROT_CTRL_SW)) // if you press dis switch lock the sas control state
+    noInterrupts(); // shutdown interrupts for this volatile operation
+    roter = _vol_rotaryControl; // copy the volatile control variable
+    interrupts(); // reenable interrupts immediately
+
+    uint8_t newState = rotaryControl2State(roter); // convert to sas number
+
+    if (newState != controlState)
     {
-      controlLocked = controlState; // update locked variable
+      controlState = newState; // update the hilighted state
 
-#ifdef DEBUG
-      Serial.println(F("this is the krpc call to change sas state"));
-#endif
+      // do hiligting stuff //
+      // here the currently hovered state will be a blinking
+      // led, there should be a timer started now that if not
+      // dealt with by pressing the dial button resets the
+      // controlState variable back to what is actually selected
+    }
 
-      controlDebounce = DELAY_CTRL; // reset delay
+    if (controlDebounce > 0)
+    {
+      controlDebounce--; // do dat sweet digi debounce
+    }
+    else
+    {
+      // if you press dis switch lock the sas control state (active low)
+      if (!digitalRead(PIN_ROT_CTRL_SW))
+      {
+        controlLocked = controlState; // update locked variable
+
+        Serial.println(ENABLE); // send enable
+        Serial.println(controlLocked); // send new sas state
+
+        controlDebounce = DELAY_CTRL; // reset delay
+      }
     }
   }
+
+  controlEnable = newControlEnable; // finally save the new state for next time around
 
   Serial.println(DISABLE); // skip or end transmission
 }
