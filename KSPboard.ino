@@ -254,6 +254,9 @@ void setupControl()
   // when you click the dial
   pinMode(PIN_ROT_CTRL_SW, INPUT_PULLUP);
 
+  // sas on/off switch
+  pinMode(PIN_ROT_CTRL_EN, INPUT_PULLUP);
+
   // set the data line as input as well (has internal pull up)
   pinMode(PIN_ROT_CTRL_DATA, INPUT);
 
@@ -307,7 +310,7 @@ void setupOps()
 
 void updateControl()
 {
-  boolean newControlEnable = digitalRead(PIN_ROT_CTRL_EN);
+  boolean newControlEnable = !digitalRead(PIN_ROT_CTRL_EN); // update active low switch
 
   // if it was on and now its off
   if (controlEnable && !newControlEnable)
