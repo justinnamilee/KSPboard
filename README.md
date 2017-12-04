@@ -14,7 +14,9 @@ Arduino code and Python script for interacting with Kerbal Space Program using [
 
   * Accepts serial data, uses that to control Kerbal Space Program with [kRPC](https://krpc.github.io/krpc/index.html).
   * Make sure kRPC mod for KSP is installed, then you will need the kRPC python library as well.
-  * To use the script:
+
+-- --
+  * To use the scripts:
     * Flash Arduino.
     * Launch KSP.
     * Load a craft at any launch site.
