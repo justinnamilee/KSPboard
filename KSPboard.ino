@@ -1,9 +1,13 @@
 //////////////////////////////////////////
-/// Justin Lee <justin at kitten dot pink>
+/// Justin Lee <justin at taiz dot me>
 //
 // Arduino driver for the KSPboard game
 // controller.  See LICENSE and README
 // for more information.
+//
+// License: GNU GPLv3 or above
+// Copyright: Justin Lee 2017-2018
+
 
 
 
