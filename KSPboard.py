@@ -1,7 +1,7 @@
 #### Justin Lee <justin at taiz dot me>
 # 
 # kRPC Serial Front-End // v0.1 alpha
-# Copyright: Justin Lee 2017-1018
+# Copyright: Justin Lee 2017-2019
 # License: GNU GPLv3 or above
 #
 ###
